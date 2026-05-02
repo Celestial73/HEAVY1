@@ -87,13 +87,110 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     receiveShadow: true,
   },
 
-  teapot: {
-    size: 0.8,
-    segments: 18,
-    color: 0xffffff,
-    side: THREE.DoubleSide,
-    castShadow: true,
+  /**
+   * Расстановка предметов при загрузке.
+   *
+   * Камера стоит в (-8, 1, -6) и смотрит в (0, 0, 0). Освещены ближайшие
+   * к началу координат точки (point light орбитит вокруг 0,1.4,0 в радиусе ~2.4,
+   * spot light светит из (2.5,5,2.5) вниз). Поэтому область задана компактно:
+   * предметы оказываются в кадре И в зоне света.
+   */
+  placement: {
+    /** Случайно расставлять при загрузке. false — использовать заданные position. */
+    random: true,
+    /** Зона размещения по горизонтали (X/Z) — куб ~4×4 вокруг центра сцены. */
+    area: { minX: -2, maxX: 2, minZ: -2, maxZ: 2 },
+    /**
+     * Высота: предметы всегда висят в воздухе и в кадре.
+     * Пол на y = floor.positionY (-3), volumetric box до y ≈ 7.
+     */
+    minY: -2,
+    maxY: 3,
+    /** Минимальная 3D-дистанция между предметами (старается, не гарантирует). */
+    minDistance: 1.6,
+    /** Случайная начальная ориентация. */
+    randomizeRotation: true,
+    /** Случайный масштаб каждого предмета (0.5 — мелкий, 1 — исходный). */
+    randomScale: false,
+    scaleMin: 0.5,
+    scaleMax: 1,
   },
+
+  /**
+   * Лёгкая собственная физика: предметы медленно дрейфуют, падают
+   * под слабой гравитацией и сталкиваются с полом.
+   */
+  physics: {
+    enabled: true,
+    /** Гравитация по Y (м/с²). 0 — невесомость, предметы просто дрейфуют. */
+    gravity: 0,
+    /**
+     * Стартовая линейная скорость (м/с). Каждому предмету выбирается
+     * случайное значение из диапазона [min, max] — все небольшие, но разные.
+     */
+    initialSpeedMin: 0.15,
+    initialSpeedMax: 0.55,
+    /** Доля от initialSpeed, которая уходит в Y (вверх/вниз). 0 — только горизонталь. */
+    initialUpwardJitter: 0.4,
+    /**
+     * Сопротивление воздуха: множитель скорости в секунду.
+     * 1 — нет, 0 — мгновенный стоп. 0.5 ≈ полная остановка за ~3–4 сек.
+     */
+    airDamping: 0.5,
+    /** Коэффициент отскока от пола (0 — гасится полностью, 1 — упругий). */
+    floorRestitution: 0.4,
+    /** Трение по горизонтали при ударе об пол. */
+    floorFriction: 0.7,
+    /** Скорость ниже этого порога считается нулевой (м/с). */
+    minLinearSpeed: 0.05,
+    /** Дополнительный отступ от пола при коллизии (запас, чтобы тень не клипалась). */
+    floorEpsilon: 0.005,
+  },
+
+  /**
+   * Все интерактивные предметы сцены. По одному на пользовательский тычок.
+   * Каждый предмет можно крутить независимо, на него нацелен raycast по нажатию.
+   *
+   * type: 'teapot' | 'box' | 'sphere' | 'icosahedron' | 'torus' | 'torusKnot' | 'cone' | 'cylinder'
+   * args: параметры конструктора геометрии (см. switch в createSpinnableMesh).
+   * material: опции MeshStandardMaterial (color, roughness, metalness, side: 'front'|'back'|'double').
+   * sensitivity (опц.): { x, y, z } переопределяет interaction.dragSensitivity*.
+   */
+  spinnables: [
+    {
+      id: 'teapot',
+      type: 'teapot',
+      args: { size: 0.8, segments: 18 },
+      position: [0, 0, 0],
+      material: { color: 0xffffff, side: 'double' },
+      castShadow: true,
+    },
+    {
+      id: 'cube',
+      type: 'box',
+      args: { width: 0.7, height: 0.7, depth: 0.7 },
+      position: [-2.6, -2.65, 1.4],
+      material: { color: 0xff8b4d, roughness: 0.4, metalness: 0.2 },
+      castShadow: true,
+      sensitivity: { x: 0.012, y: 0.012, z: 0.006 },
+    },
+    {
+      id: 'icosahedron',
+      type: 'icosahedron',
+      args: { radius: 0.55, detail: 0 },
+      position: [2.4, -2.45, 0.6],
+      material: { color: 0x53b5ff, roughness: 0.35, metalness: 0.5 },
+      castShadow: true,
+    },
+    {
+      id: 'torusKnot',
+      type: 'torusKnot',
+      args: { radius: 0.45, tube: 0.13, tubularSegments: 96, radialSegments: 12 },
+      position: [-1, -2.4, -2.4],
+      material: { color: 0xff64b7, roughness: 0.25, metalness: 0.4 },
+      castShadow: true,
+    },
+  ],
 
   floor: {
     width: 100,
@@ -149,18 +246,29 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     volumetricLightingIntensity: 1,
   },
 
-  /** Анимация источников и чайника. */
+  /** Анимация источников. */
   animation: {
     orbitScale: 2.4,
     pointLight: {
       speedX: 0.7,
       speedY: 0.5,
       speedZ: 0.3,
+      /**
+       * Случайные фазы по каждой оси при загрузке: свет появляется в разной
+       * точке своей орбиты, а не всегда в одной и той же.
+       */
+      randomizePhase: true,
     },
     spotLight: {
-      speedX: 0.3,
+      /** Угловая скорость орбиты (rad/s в шкале сцены). */
+      speed: 0.3,
+      /** Радиус горизонтальной орбиты вокруг центра сцены. */
+      radius: 3.5,
+      /** Высота, на которой spot движется по кругу. */
+      height: 5,
+      /** Случайная стартовая фаза — каждый раз заходит с новой стороны. */
+      randomizePhase: true,
     },
-    teapotRotationY: 0,
   },
 
   /** Связка "сцена оживает при касании". */
@@ -200,5 +308,23 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     decelerationTime: 2.6,
     /** Скорость ниже этого порога считается нулевой (rad/s). */
     minAngularVelocity: 0.0005,
+  },
+
+  /** 2D-оверлей поверх volumetric-сцены (текст, UI). */
+  overlay: {
+    /** Анимация появления бренд-заголовка построчно. */
+    brandIntro: {
+      /** Задержка перед началом первой строки (сек). */
+      initialDelay: 2,
+      /** Промежуток между соседними строками (сек). */
+      lineStagger: 0.3,
+    },
+    /** Анимация появления кнопок управления (refresh, next). */
+    controlsIntro: {
+      /** Задержка перед появлением первой кнопки (сек). Должна быть больше brandIntro. */
+      initialDelay: 4,
+      /** Промежуток между соседними кнопками (сек). */
+      stagger: 0.2,
+    },
   },
 }

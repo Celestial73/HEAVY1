@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as THREE from 'three/webgpu'
 import {
   Fn,
@@ -59,6 +60,81 @@ function createTexture3D(cfg) {
   texture.unpackAlignment = unpackAlignment
   texture.needsUpdate = true
   return texture
+}
+
+function resolveMaterialSide(side) {
+  if (side === 'double') return THREE.DoubleSide
+  if (side === 'back') return THREE.BackSide
+  return THREE.FrontSide
+}
+
+function createSpinnableMesh(cfg) {
+  const a = cfg.args || {}
+  let geometry
+  switch (cfg.type) {
+    case 'teapot':
+      geometry = new TeapotGeometry(a.size ?? 0.8, a.segments ?? 18)
+      break
+    case 'box':
+      geometry = new THREE.BoxGeometry(a.width ?? 1, a.height ?? 1, a.depth ?? 1)
+      break
+    case 'sphere':
+      geometry = new THREE.SphereGeometry(
+        a.radius ?? 0.5,
+        a.widthSegments ?? 32,
+        a.heightSegments ?? 16,
+      )
+      break
+    case 'icosahedron':
+      geometry = new THREE.IcosahedronGeometry(a.radius ?? 0.5, a.detail ?? 0)
+      break
+    case 'torus':
+      geometry = new THREE.TorusGeometry(
+        a.radius ?? 0.4,
+        a.tube ?? 0.15,
+        a.radialSegments ?? 12,
+        a.tubularSegments ?? 48,
+      )
+      break
+    case 'torusKnot':
+      geometry = new THREE.TorusKnotGeometry(
+        a.radius ?? 0.4,
+        a.tube ?? 0.13,
+        a.tubularSegments ?? 96,
+        a.radialSegments ?? 12,
+      )
+      break
+    case 'cone':
+      geometry = new THREE.ConeGeometry(
+        a.radius ?? 0.5,
+        a.height ?? 1,
+        a.segments ?? 32,
+      )
+      break
+    case 'cylinder':
+      geometry = new THREE.CylinderGeometry(
+        a.radiusTop ?? 0.5,
+        a.radiusBottom ?? 0.5,
+        a.height ?? 1,
+        a.segments ?? 32,
+      )
+      break
+    default:
+      throw new Error(`Unknown spinnable type: ${cfg.type}`)
+  }
+
+  const m = cfg.material || {}
+  const material = new THREE.MeshStandardMaterial({
+    color: m.color ?? 0xffffff,
+    roughness: m.roughness ?? 0.5,
+    metalness: m.metalness ?? 0,
+    side: resolveMaterialSide(m.side),
+  })
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.castShadow = cfg.castShadow ?? true
+  mesh.receiveShadow = cfg.receiveShadow ?? false
+  return mesh
 }
 
 function createSpotColorMap(cfg) {
@@ -188,13 +264,111 @@ export default function VolumetricLightingSection() {
       volumetricMesh.layers.enable(S.layerIndex)
       scene.add(volumetricMesh)
 
-      const tp = S.teapot
-      const teapot = new THREE.Mesh(
-        new TeapotGeometry(tp.size, tp.segments),
-        new THREE.MeshStandardMaterial({ color: tp.color, side: tp.side }),
-      )
-      teapot.castShadow = tp.castShadow
-      scene.add(teapot)
+      const placement = S.placement || { random: false }
+      const physics = S.physics || { enabled: false }
+      const placedPositions = []
+      const spinnables = S.spinnables.map((cfg) => {
+        const mesh = createSpinnableMesh(cfg)
+
+        let x = cfg.position[0]
+        let y = cfg.position[1]
+        let z = cfg.position[2]
+
+        if (placement.random) {
+          const area = placement.area
+          const minDistSq = (placement.minDistance ?? 0) ** 2
+          let bestX = x
+          let bestY = y
+          let bestZ = z
+          let bestDistSq = -Infinity
+
+          for (let attempt = 0; attempt < 32; attempt += 1) {
+            const candX = THREE.MathUtils.lerp(area.minX, area.maxX, Math.random())
+            const candY = THREE.MathUtils.lerp(placement.minY, placement.maxY, Math.random())
+            const candZ = THREE.MathUtils.lerp(area.minZ, area.maxZ, Math.random())
+            let nearestSq = Infinity
+            for (const p of placedPositions) {
+              const dSq =
+                (p.x - candX) ** 2 + (p.y - candY) ** 2 + (p.z - candZ) ** 2
+              if (dSq < nearestSq) nearestSq = dSq
+            }
+            if (nearestSq >= minDistSq) {
+              bestX = candX
+              bestY = candY
+              bestZ = candZ
+              break
+            }
+            if (nearestSq > bestDistSq) {
+              bestDistSq = nearestSq
+              bestX = candX
+              bestY = candY
+              bestZ = candZ
+            }
+          }
+
+          x = bestX
+          y = bestY
+          z = bestZ
+          placedPositions.push({ x, y, z })
+        }
+
+        mesh.position.set(x, y, z)
+
+        if (placement.random && placement.randomScale) {
+          const s = THREE.MathUtils.lerp(
+            placement.scaleMin ?? 1,
+            placement.scaleMax ?? 1,
+            Math.random(),
+          )
+          mesh.scale.setScalar(s)
+        }
+
+        if (placement.randomizeRotation) {
+          mesh.rotation.set(
+            Math.random() * Math.PI * 2,
+            Math.random() * Math.PI * 2,
+            Math.random() * Math.PI * 2,
+          )
+        }
+
+        scene.add(mesh)
+
+        mesh.geometry.computeBoundingSphere()
+        const baseRadius = mesh.geometry.boundingSphere?.radius ?? 0.5
+        const radius = baseRadius * mesh.scale.x
+
+        const linearVelocity = new THREE.Vector3()
+        if (physics.enabled) {
+          const dir = new THREE.Vector3(
+            Math.random() * 2 - 1,
+            (Math.random() * 2 - 1) * (physics.initialUpwardJitter ?? 0),
+            Math.random() * 2 - 1,
+          )
+          if (dir.lengthSq() === 0) dir.set(1, 0, 0)
+          dir.normalize()
+          const speed = THREE.MathUtils.lerp(
+            physics.initialSpeedMin ?? 0,
+            physics.initialSpeedMax ?? physics.initialSpeedMin ?? 0,
+            Math.random(),
+          )
+          linearVelocity.copy(dir).multiplyScalar(speed)
+        }
+
+        return {
+          cfg,
+          mesh,
+          radius,
+          linearVelocity,
+          velocityX: 0,
+          velocityY: 0,
+          velocityZ: 0,
+          targetVelocityX: 0,
+          targetVelocityY: 0,
+          targetVelocityZ: 0,
+          pendingDX: 0,
+          pendingDY: 0,
+        }
+      })
 
       const fl = S.floor
       const floor = new THREE.Mesh(
@@ -261,50 +435,74 @@ export default function VolumetricLightingSection() {
       const interaction = S.interaction
       const motion = S.motion
 
-      const dragState = {
-        isDown: false,
-        pointerId: null,
-        velocityX: 0,
-        velocityY: 0,
-        velocityZ: 0,
-        targetVelocityX: 0,
-        targetVelocityY: 0,
-        targetVelocityZ: 0,
-        pendingDX: 0,
-        pendingDY: 0,
-        autoRotationY: 0,
+      const sceneState = {
         sceneTime: 0,
         speedMultiplier: motion.idleSpeed,
       }
 
+      const TAU = Math.PI * 2
+      const pointPhase = anim.pointLight.randomizePhase
+        ? {
+            x: Math.random() * TAU,
+            y: Math.random() * TAU,
+            z: Math.random() * TAU,
+          }
+        : { x: 0, y: 0, z: 0 }
+      const spotPhase = anim.spotLight.randomizePhase
+        ? { x: Math.random() * TAU }
+        : { x: 0 }
+
+      const raycaster = new THREE.Raycaster()
+      const ndc = new THREE.Vector2()
+      let activeDrag = null
+
+      const pickSpinnable = (event) => {
+        const rect = renderer.domElement.getBoundingClientRect()
+        if (rect.width === 0 || rect.height === 0) return null
+        ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+        ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+        raycaster.setFromCamera(ndc, camera)
+        const meshes = spinnables.map((s) => s.mesh)
+        const hit = raycaster.intersectObjects(meshes, false)[0]
+        if (!hit) return null
+        return spinnables.find((s) => s.mesh === hit.object) || null
+      }
+
       const onPointerDown = (event) => {
         if (!interaction.enableDragRotate) return
-        dragState.isDown = true
-        dragState.pointerId = event.pointerId
-        dragState.pendingDX = 0
-        dragState.pendingDY = 0
+        const target = pickSpinnable(event)
+        if (!target) return
+        activeDrag = { spinnable: target, pointerId: event.pointerId }
+        target.pendingDX = 0
+        target.pendingDY = 0
         renderer.domElement.setPointerCapture?.(event.pointerId)
       }
 
       const onPointerMove = (event) => {
-        if (!dragState.isDown || dragState.pointerId !== event.pointerId) return
-        dragState.pendingDX += event.movementX || 0
-        dragState.pendingDY += event.movementY || 0
+        if (!activeDrag || activeDrag.pointerId !== event.pointerId) {
+          if (interaction.enableDragRotate && !activeDrag) {
+            const hover = pickSpinnable(event)
+            renderer.domElement.style.cursor = hover ? 'grab' : 'default'
+          }
+          return
+        }
+        activeDrag.spinnable.pendingDX += event.movementX || 0
+        activeDrag.spinnable.pendingDY += event.movementY || 0
       }
 
       const releaseDrag = (event) => {
-        if (dragState.pointerId !== event.pointerId) return
-        dragState.isDown = false
-        dragState.pointerId = null
+        if (!activeDrag || activeDrag.pointerId !== event.pointerId) return
         try {
           renderer.domElement.releasePointerCapture?.(event.pointerId)
         } catch {
           /* noop */
         }
+        activeDrag = null
+        renderer.domElement.style.cursor = 'default'
       }
 
       if (interaction.enableDragRotate) {
-        renderer.domElement.style.cursor = 'grab'
+        renderer.domElement.style.cursor = 'default'
         renderer.domElement.addEventListener('pointerdown', onPointerDown)
         renderer.domElement.addEventListener('pointermove', onPointerMove)
         renderer.domElement.addEventListener('pointerup', releaseDrag)
@@ -312,91 +510,123 @@ export default function VolumetricLightingSection() {
         renderer.domElement.addEventListener('pointerleave', releaseDrag)
       }
 
+      const approachVelocity = (current, target, delta) => {
+        const speeding = Math.abs(target) > Math.abs(current)
+        const t = speeding ? interaction.accelerationTime : interaction.decelerationTime
+        const smooth = t > 0 ? 1 - Math.exp(-delta / t) : 1
+        return current + (target - current) * smooth
+      }
+
       renderer.setAnimationLoop(() => {
         const delta = clock.getDelta()
-        const angularSpeed = Math.hypot(
-          dragState.velocityX,
-          dragState.velocityY,
-          dragState.velocityZ,
-        )
+        let totalAngularSpeed = 0
+
+        if (interaction.enableDragRotate) {
+          for (const s of spinnables) {
+            const sens = s.cfg.sensitivity
+            const sx = sens?.x ?? interaction.dragSensitivityX
+            const sy = sens?.y ?? interaction.dragSensitivityY
+            const sz = sens?.z ?? interaction.dragSensitivityZ
+            const isActive = activeDrag?.spinnable === s
+
+            if (isActive && delta > 1e-5) {
+              const dx = s.pendingDX
+              const dy = s.pendingDY
+              s.targetVelocityY = (dx * sy) / delta
+              s.targetVelocityX = (dy * sx) / delta
+              s.targetVelocityZ = ((dx + dy) * sz) / delta
+            } else if (!isActive) {
+              s.targetVelocityX = 0
+              s.targetVelocityY = 0
+              s.targetVelocityZ = 0
+            }
+            s.pendingDX = 0
+            s.pendingDY = 0
+
+            s.velocityX = approachVelocity(s.velocityX, s.targetVelocityX, delta)
+            s.velocityY = approachVelocity(s.velocityY, s.targetVelocityY, delta)
+            s.velocityZ = approachVelocity(s.velocityZ, s.targetVelocityZ, delta)
+
+            if (Math.abs(s.velocityX) < interaction.minAngularVelocity) s.velocityX = 0
+            if (Math.abs(s.velocityY) < interaction.minAngularVelocity) s.velocityY = 0
+            if (Math.abs(s.velocityZ) < interaction.minAngularVelocity) s.velocityZ = 0
+
+            s.mesh.rotateY(s.velocityY * delta)
+            s.mesh.rotateX(s.velocityX * delta)
+            s.mesh.rotateZ(s.velocityZ * delta)
+
+            totalAngularSpeed += Math.hypot(s.velocityX, s.velocityY, s.velocityZ)
+          }
+        }
+
+        if (physics.enabled) {
+          const floorY = S.floor.positionY
+          const damping = Math.pow(physics.airDamping ?? 1, delta)
+          for (const s of spinnables) {
+            const isHeld = activeDrag?.spinnable === s
+            const v = s.linearVelocity
+
+            if (isHeld) {
+              v.set(0, 0, 0)
+              continue
+            }
+
+            v.y += (physics.gravity ?? 0) * delta
+            v.multiplyScalar(damping)
+
+            s.mesh.position.x += v.x * delta
+            s.mesh.position.y += v.y * delta
+            s.mesh.position.z += v.z * delta
+
+            const minY = floorY + s.radius + (physics.floorEpsilon ?? 0)
+            if (s.mesh.position.y < minY) {
+              s.mesh.position.y = minY
+              if (v.y < 0) v.y = -v.y * (physics.floorRestitution ?? 0)
+              v.x *= physics.floorFriction ?? 1
+              v.z *= physics.floorFriction ?? 1
+            }
+
+            const min = physics.minLinearSpeed ?? 0
+            if (Math.abs(v.x) < min) v.x = 0
+            if (Math.abs(v.y) < min && s.mesh.position.y === minY) v.y = 0
+            if (Math.abs(v.z) < min) v.z = 0
+          }
+        }
+
         let targetMultiplier
         if (motion.drivenByInteraction) {
-          const activity = dragState.isDown
+          const activity = activeDrag
             ? 1
-            : Math.min(1, angularSpeed / Math.max(motion.activityThreshold, 1e-5))
+            : Math.min(1, totalAngularSpeed / Math.max(motion.activityThreshold, 1e-5))
           targetMultiplier =
             motion.idleSpeed + (motion.activeSpeed - motion.idleSpeed) * activity
         } else {
           targetMultiplier = 1
         }
 
-        const ramping = targetMultiplier > dragState.speedMultiplier
-          ? motion.rampUpTime
-          : motion.rampDownTime
-        const smoothing =
-          ramping > 0 ? 1 - Math.exp(-delta / ramping) : 1
-        dragState.speedMultiplier +=
-          (targetMultiplier - dragState.speedMultiplier) * smoothing
+        const ramping =
+          targetMultiplier > sceneState.speedMultiplier
+            ? motion.rampUpTime
+            : motion.rampDownTime
+        const smoothing = ramping > 0 ? 1 - Math.exp(-delta / ramping) : 1
+        sceneState.speedMultiplier +=
+          (targetMultiplier - sceneState.speedMultiplier) * smoothing
 
-        dragState.sceneTime += delta * dragState.speedMultiplier
-        const t = dragState.sceneTime
+        sceneState.sceneTime += delta * sceneState.speedMultiplier
+        const t = sceneState.sceneTime
         const scale = anim.orbitScale
         const p = anim.pointLight
 
-        pointLight.position.x = Math.sin(t * p.speedX) * scale
-        pointLight.position.y = Math.cos(t * p.speedY) * scale
-        pointLight.position.z = Math.cos(t * p.speedZ) * scale
+        pointLight.position.x = Math.sin(t * p.speedX + pointPhase.x) * scale
+        pointLight.position.y = Math.cos(t * p.speedY + pointPhase.y) * scale
+        pointLight.position.z = Math.cos(t * p.speedZ + pointPhase.z) * scale
 
-        spotLight.position.x = Math.cos(t * anim.spotLight.speedX) * scale
-        spotLight.position.y = sl.restPosition[1]
-        spotLight.position.z = sl.restPosition[2]
+        const spotAnim = anim.spotLight
+        const spotAngle = t * spotAnim.speed + spotPhase.x
+        spotLight.position.x = Math.cos(spotAngle) * spotAnim.radius
+        spotLight.position.y = spotAnim.height
+        spotLight.position.z = Math.sin(spotAngle) * spotAnim.radius
         spotLight.lookAt(0, 0, 0)
-
-        dragState.autoRotationY += anim.teapotRotationY * delta
-        if (anim.teapotRotationY !== 0) {
-          teapot.rotation.y = dragState.autoRotationY
-        }
-
-        if (interaction.enableDragRotate) {
-          const sx = interaction.dragSensitivityX
-          const sy = interaction.dragSensitivityY
-          const sz = interaction.dragSensitivityZ
-
-          if (dragState.isDown && delta > 1e-5) {
-            const dx = dragState.pendingDX
-            const dy = dragState.pendingDY
-            dragState.targetVelocityY = (dx * sy) / delta
-            dragState.targetVelocityX = (dy * sx) / delta
-            dragState.targetVelocityZ = ((dx + dy) * sz) / delta
-          } else if (!dragState.isDown) {
-            dragState.targetVelocityX = 0
-            dragState.targetVelocityY = 0
-            dragState.targetVelocityZ = 0
-          }
-          dragState.pendingDX = 0
-          dragState.pendingDY = 0
-
-          const approach = (current, target) => {
-            const speeding = Math.abs(target) > Math.abs(current)
-            const time = speeding
-              ? interaction.accelerationTime
-              : interaction.decelerationTime
-            const smooth = time > 0 ? 1 - Math.exp(-delta / time) : 1
-            return current + (target - current) * smooth
-          }
-
-          dragState.velocityX = approach(dragState.velocityX, dragState.targetVelocityX)
-          dragState.velocityY = approach(dragState.velocityY, dragState.targetVelocityY)
-          dragState.velocityZ = approach(dragState.velocityZ, dragState.targetVelocityZ)
-
-          if (Math.abs(dragState.velocityX) < interaction.minAngularVelocity) dragState.velocityX = 0
-          if (Math.abs(dragState.velocityY) < interaction.minAngularVelocity) dragState.velocityY = 0
-          if (Math.abs(dragState.velocityZ) < interaction.minAngularVelocity) dragState.velocityZ = 0
-
-          teapot.rotateY(dragState.velocityY * delta)
-          teapot.rotateX(dragState.velocityX * delta)
-          teapot.rotateZ(dragState.velocityZ * delta)
-        }
 
         controls.update()
         renderPipeline.render()
@@ -429,6 +659,80 @@ export default function VolumetricLightingSection() {
       ref={containerRef}
       className={settings.layout.sectionClassName}
       style={{ touchAction: settings.layout.touchAction }}
-    />
+    >
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          aria-label="Обновить страницу"
+          style={{
+            animationDelay: `${settings.overlay.controlsIntro.initialDelay}s`,
+          }}
+          className="pointer-events-auto group inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/15 bg-white/5 text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 transition-transform duration-500 group-hover:rotate-180"
+          >
+            <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />
+            <path d="M3 21v-5h5" />
+          </svg>
+        </button>
+
+        <Link
+          to="/comparison"
+          style={{
+            animationDelay: `${
+              settings.overlay.controlsIntro.initialDelay +
+              settings.overlay.controlsIntro.stagger
+            }s`,
+          }}
+          className="pointer-events-auto inline-flex h-12 animate-fade-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
+        >
+          Next
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+          >
+            <path d="M5 12h14" />
+            <path d="M13 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 z-10 flex items-center px-6 sm:px-12 md:px-16 lg:px-24">
+        <h1 className="font-brand -translate-y-[255%] text-left uppercase leading-[0.9] tracking-tight text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)] text-6xl sm:text-10xl md:text-12xl lg:text-[14rem]">
+          <span
+            className="block animate-fade-up tracking-[0.02em] text-transparent [-webkit-text-stroke:1.5px_white] sm:[-webkit-text-stroke:2px_white] lg:[-webkit-text-stroke:2.5px_white]"
+            style={{ animationDelay: `${settings.overlay.brandIntro.initialDelay}s` }}
+          >
+            Агентство
+          </span>
+          <span
+            className="block animate-fade-up tracking-[0.01em] text-7xl"
+            style={{
+              animationDelay: `${
+                settings.overlay.brandIntro.initialDelay +
+                settings.overlay.brandIntro.lineStagger
+              }s`,
+            }}
+          >
+            утяжеления
+          </span>
+        </h1>
+      </div>
+    </section>
   )
 }

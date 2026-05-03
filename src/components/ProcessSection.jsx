@@ -1,14 +1,32 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three/webgpu'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
+import { PROCESS_SECTION_SETTINGS as defaults } from '../config/processSectionSettings.js'
 
-const CUBE_COUNT = 4
-/** Размеры «плитки»: квадрат с лёгкой толщиной по Z. */
-const CUBE_WIDTH = 2
-const CUBE_HEIGHT = 1.6
-const CUBE_DEPTH = 0.25
+function mergeMaterialOptions(defaultsObj, userObj = {}) {
+  const out = { ...defaultsObj }
+  for (const [k, v] of Object.entries(userObj)) {
+    if (v !== undefined) out[k] = v
+  }
+  return out
+}
+
+/** Размеры «плитки» (масштаб ×1.5 относительно базы 2×1.6×0.25). */
+const CUBE_WIDTH = 4.5
+const CUBE_HEIGHT = 3.3
+const CUBE_DEPTH = 0.375
+/** Полоса рамки (от края плашки к центру) и выступ вперёд (+Z, к камере). */
+const FRAME_RAIL = 0.15
+const FRAME_OUTSET = 0.075
+/** Фаски RoundedBoxGeometry: радиус скругления рёбер (сегменты дуги). */
+const PLATE_BEVEL_RADIUS = 0.063
+const PLATE_BEVEL_SEGMENTS = 2
+const FRAME_BEVEL_RADIUS = 0.021
+const FRAME_BEVEL_SEGMENTS = 1
 /** Промежуток между соседними плитками (по Y, поверх их собственной высоты). */
-const CUBE_GAP = 0.9
-const CUBE_COLORS = [0xff8b4d, 0x53b5ff, 0xff64b7, 0xa3e635]
+const CUBE_GAP = 1.35
 
 /** Космос: сопротивления почти нет, но чтобы предметы не уезжали в бесконечность —
  *  лёгкое экспоненциальное затухание скорости (доля, остающаяся за секунду). */
@@ -48,13 +66,13 @@ const DRAG_DAMPING_RATIO = 1
  * Когда натянулась — кубик-сосед подтягивается к тому, что мы тянем.
  *
  *  - CHAIN_LENGTH должна быть > начального расстояния между кубиками
- *    (CUBE_HEIGHT + CUBE_GAP), иначе цепь сразу сжимает их.
+ *    (CUBE_HEIGHT + CUBE_GAP) — сейчас ~3.75, запас в длине звена.
  *  - CONSTRAINT_ITERATIONS — сколько раз за кадр прогоняем все звенья и
  *    столкновения. Больше итераций = стабильнее распространение через
  *    несколько звеньев и устойчивее разрешение коллизий стопками. 8
  *    хватает для 4 кубиков.
  */
-const CHAIN_LENGTH = 3
+const CHAIN_LENGTH = 4.5
 const CONSTRAINT_ITERATIONS = 8
 
 /**
@@ -66,7 +84,7 @@ const CONSTRAINT_ITERATIONS = 8
  *  - COLLIDER_PADDING — дополнительный зазор между плитками сверх их
  *    геометрии. 0 = соприкасаются плотно, >0 — небольшой воздушный зазор.
  */
-const COLLIDER_PADDING = 0.02
+const COLLIDER_PADDING = 0.03
 
 /**
  * Мягкая граница экрана. Кубик не улетает за края, но и не «прилипает»:
@@ -82,22 +100,133 @@ const COLLIDER_PADDING = 0.02
 const BOUNCE_RESTITUTION = 0.15
 const BOUNCE_TANGENT_FRICTION = 0.9
 
+/** Группа: корпус плашки + лицевая рамка по периметру (выступ по +Z к камере). */
+function buildPlateWithBezel(plateMat) {
+  const tile = new THREE.Group()
+  tile.userData.isProcessTileRoot = true
+
+  const plateGeom = new RoundedBoxGeometry(
+    CUBE_WIDTH,
+    CUBE_HEIGHT,
+    CUBE_DEPTH,
+    PLATE_BEVEL_SEGMENTS,
+    PLATE_BEVEL_RADIUS,
+  )
+  const plate = new THREE.Mesh(plateGeom, plateMat)
+  tile.add(plate)
+
+  const frameMat = plateMat.clone()
+  frameMat.color.multiplyScalar(0.4)
+  frameMat.roughness = Math.min(1, (frameMat.roughness ?? 0.5) + 0.18)
+  frameMat.metalness = Math.min(1, (frameMat.metalness ?? 0.8) + 0.05)
+
+  const zc = CUBE_DEPTH * 0.5 + FRAME_OUTSET * 0.5
+  const innerH = Math.max(0.02, CUBE_HEIGHT - 2 * FRAME_RAIL)
+
+  const segments = [
+    {
+      geom: new RoundedBoxGeometry(
+        CUBE_WIDTH,
+        FRAME_RAIL,
+        FRAME_OUTSET,
+        FRAME_BEVEL_SEGMENTS,
+        FRAME_BEVEL_RADIUS,
+      ),
+      pos: [0, CUBE_HEIGHT * 0.5 - FRAME_RAIL * 0.5, zc],
+    },
+    {
+      geom: new RoundedBoxGeometry(
+        CUBE_WIDTH,
+        FRAME_RAIL,
+        FRAME_OUTSET,
+        FRAME_BEVEL_SEGMENTS,
+        FRAME_BEVEL_RADIUS,
+      ),
+      pos: [0, -CUBE_HEIGHT * 0.5 + FRAME_RAIL * 0.5, zc],
+    },
+    {
+      geom: new RoundedBoxGeometry(
+        FRAME_RAIL,
+        innerH,
+        FRAME_OUTSET,
+        FRAME_BEVEL_SEGMENTS,
+        FRAME_BEVEL_RADIUS,
+      ),
+      pos: [-CUBE_WIDTH * 0.5 + FRAME_RAIL * 0.5, 0, zc],
+    },
+    {
+      geom: new RoundedBoxGeometry(
+        FRAME_RAIL,
+        innerH,
+        FRAME_OUTSET,
+        FRAME_BEVEL_SEGMENTS,
+        FRAME_BEVEL_RADIUS,
+      ),
+      pos: [CUBE_WIDTH * 0.5 - FRAME_RAIL * 0.5, 0, zc],
+    },
+  ]
+
+  for (const { geom, pos } of segments) {
+    const rail = new THREE.Mesh(geom, frameMat)
+    rail.position.set(pos[0], pos[1], pos[2])
+    tile.add(rail)
+  }
+
+  return tile
+}
+
+function tileFromIntersectObject(obj) {
+  let o = obj
+  while (o) {
+    if (o instanceof THREE.Group && o.userData?.isProcessTileRoot) return o
+    o = o.parent
+  }
+  return null
+}
+
+function disposeTileResources(tile) {
+  tile.userData.proceduralDispose?.()
+  const materials = new Set()
+  tile.traverse((ch) => {
+    if (!ch.isMesh) return
+    ch.geometry?.dispose()
+    const m = ch.material
+    if (Array.isArray(m)) m.forEach((mm) => materials.add(mm))
+    else if (m) materials.add(m)
+  })
+  materials.forEach((m) => m.dispose())
+}
+
 export default function ProcessSection() {
   const containerRef = useRef(null)
+  const [settings, setSettings] = useState(defaults)
+
+  useEffect(() => {
+    if (!import.meta.hot) return undefined
+    import.meta.hot.accept('../config/processSectionSettings.js', (mod) => {
+      if (mod?.PROCESS_SECTION_SETTINGS) setSettings(mod.PROCESS_SECTION_SETTINGS)
+    })
+    return undefined
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return undefined
 
+    const cubeSpecs = settings.cubes
+    const cubeCount = cubeSpecs.length
+    if (cubeCount < 1) return undefined
+
     let renderer = null
     let resizeObserver = null
     let cancelled = false
+    let environmentTarget = null
 
     const scene = new THREE.Scene()
     scene.background = null
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100)
-    camera.position.set(0, 0, 14)
+    camera.position.set(0, 0, 21)
     camera.lookAt(0, 0, 0)
 
     // Освещение: мягкая заливка + ключ + холодная подсветка сзади.
@@ -113,24 +242,51 @@ export default function ProcessSection() {
     // с собственным velocity. Z = 0, drag живёт в плоскости z=0.
     const cubes = []
     const stride = CUBE_HEIGHT + CUBE_GAP
-    const totalHeight = (CUBE_COUNT - 1) * stride
+    const totalHeight = (cubeCount - 1) * stride
     const topY = totalHeight / 2
-    for (let i = 0; i < CUBE_COUNT; i += 1) {
-      const geom = new THREE.BoxGeometry(CUBE_WIDTH, CUBE_HEIGHT, CUBE_DEPTH)
-      const mat = new THREE.MeshStandardMaterial({
-        color: CUBE_COLORS[i % CUBE_COLORS.length],
-        roughness: 0.35,
-        metalness: 0.4,
-      })
-      const mesh = new THREE.Mesh(geom, mat)
-      mesh.position.set(0, topY - i * stride, 0)
-      mesh.userData.velocity = new THREE.Vector3(0, 0, 0)
+    for (let i = 0; i < cubeCount; i += 1) {
+      const spec = cubeSpecs[i] ?? {}
+      const matOpts = mergeMaterialOptions(settings.defaultMaterial, spec.material ?? {})
+
+      const globalProc = settings.procedural ?? {}
+      const cubeProc = spec.procedural
+      const procOn =
+        globalProc.enabled !== false && (cubeProc === undefined || cubeProc.enabled !== false)
+      let proceduralDispose = null
+      if (procOn) {
+        const presets = globalProc.presetsByIndex ?? [
+          'copper',
+          'lead',
+          'aluminum',
+          'bronze',
+        ]
+        const preset = (cubeProc && cubeProc.preset) ?? presets[i % presets.length] ?? 'copper'
+        const seed = (cubeProc && typeof cubeProc.seed === 'number'
+          ? cubeProc.seed
+          : i * 7919 + 1337)
+        const uv = globalProc.uvRepeat ?? [3.5, 3.5]
+        const uvU = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[0]) ?? uv[0]
+        const uvV = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[1]) ?? uv[1]
+        const maps = createMetalProceduralMaps(preset, seed, {
+          uvRepeatU: uvU,
+          uvRepeatV: uvV,
+        })
+        Object.assign(matOpts, maps.textures)
+        matOpts.normalScale = maps.normalScale
+        proceduralDispose = maps.dispose
+      }
+
+      const mat = new THREE.MeshStandardMaterial(matOpts)
+      const tile = buildPlateWithBezel(mat)
+      tile.userData.proceduralDispose = proceduralDispose
+      tile.position.set(0, topY - i * stride, 0)
+      tile.userData.velocity = new THREE.Vector3(0, 0, 0)
       // Уникальные параметры покачивания: фазы — случайные [0, 2π],
       // скорости — случайные в диапазоне [WOBBLE_SPEED_MIN, WOBBLE_SPEED_MAX].
       const TAU = Math.PI * 2
       const randSpeed = () =>
         WOBBLE_SPEED_MIN + Math.random() * (WOBBLE_SPEED_MAX - WOBBLE_SPEED_MIN)
-      mesh.userData.wobble = {
+      tile.userData.wobble = {
         phaseX: Math.random() * TAU,
         phaseY: Math.random() * TAU,
         phaseZ: Math.random() * TAU,
@@ -138,8 +294,8 @@ export default function ProcessSection() {
         speedY: randSpeed(),
         speedZ: randSpeed(),
       }
-      scene.add(mesh)
-      cubes.push(mesh)
+      scene.add(tile)
+      cubes.push(tile)
     }
 
     // Визуальная цепь: ломаная линия через центры кубиков. Пунктир делает её
@@ -156,8 +312,8 @@ export default function ProcessSection() {
       color: 0xffffff,
       transparent: true,
       opacity: 0.55,
-      dashSize: 0.18,
-      gapSize: 0.12,
+      dashSize: 0.27,
+      gapSize: 0.18,
     })
     const chainLine = new THREE.Line(chainGeom, chainMat)
     chainLine.computeLineDistances()
@@ -192,6 +348,17 @@ export default function ProcessSection() {
       }
       if (cancelled) return
 
+      const envCfg = settings.environment ?? {}
+      const roomBlurSigma = envCfg.roomBlurSigma ?? 0.04
+      const environmentIntensity = envCfg.intensity ?? 0.88
+
+      const pmremGenerator = new THREE.PMREMGenerator(renderer)
+      const roomEnvironment = new RoomEnvironment()
+      environmentTarget = pmremGenerator.fromScene(roomEnvironment, roomBlurSigma)
+      scene.environment = environmentTarget.texture
+      scene.environmentIntensity = environmentIntensity
+      pmremGenerator.dispose()
+
       container.appendChild(renderer.domElement)
       renderer.domElement.style.touchAction = 'none'
       renderer.domElement.style.display = 'block'
@@ -218,10 +385,11 @@ export default function ProcessSection() {
       const onPointerDown = (event) => {
         if (!updateNdc(event)) return
         raycaster.setFromCamera(ndc, camera)
-        const hit = raycaster.intersectObjects(cubes, false)[0]
+        const hit = raycaster.intersectObjects(cubes, true)[0]
         if (!hit) return
 
-        const mesh = hit.object
+        const mesh = tileFromIntersectObject(hit.object)
+        if (!mesh) return
         // Плоскость drag'а — параллельна экрану (нормаль = -forward камеры),
         // проходит через текущую позицию кубика. Гарантирует, что
         // во всех ракурсах drag двигает только в плоскости экрана.
@@ -255,7 +423,8 @@ export default function ProcessSection() {
         if (!dragging || dragging.pointerId !== event.pointerId) {
           if (!dragging && updateNdc(event)) {
             raycaster.setFromCamera(ndc, camera)
-            const hover = raycaster.intersectObjects(cubes, false)[0]
+            const hoverHit = raycaster.intersectObjects(cubes, true)[0]
+            const hover = hoverHit ? tileFromIntersectObject(hoverHit.object) : null
             renderer.domElement.style.cursor = hover ? 'grab' : 'default'
           }
           return
@@ -296,7 +465,7 @@ export default function ProcessSection() {
       const chainMaxSq = CHAIN_LENGTH * CHAIN_LENGTH
 
       // Тангенс полу-FOV предвычисляем — он не меняется. Камера статична
-      // на (0,0,14), значит расстояние до плоскости z=0 = camera.position.z.
+      // на (0,0,21), значит расстояние до плоскости z=0 = camera.position.z.
       const halfFovTan = Math.tan(camera.fov * 0.5 * (Math.PI / 180))
       const halfCubeW = CUBE_WIDTH / 2
       const halfCubeH = CUBE_HEIGHT / 2
@@ -521,14 +690,15 @@ export default function ProcessSection() {
         }
         renderer.dispose()
       }
+      scene.environment = null
+      environmentTarget?.dispose()
       for (const cube of cubes) {
-        cube.geometry.dispose()
-        cube.material.dispose()
+        disposeTileResources(cube)
       }
       chainGeom.dispose()
       chainMat.dispose()
     }
-  }, [])
+  }, [settings])
 
   return (
     <section id="process" className="relative h-svh w-full bg-black">

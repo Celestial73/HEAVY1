@@ -1,5 +1,6 @@
 import { Route, Routes, useLocation } from 'react-router-dom'
 import ComparisonSection from './components/ComparisonSection'
+import ProcessSection from './components/ProcessSection'
 import ScrollToTop from './components/ScrollToTop'
 import VolumetricLightingSection from './components/VolumetricLightingSection'
 
@@ -13,6 +14,7 @@ function App() {
         <Routes location={location}>
           <Route path="/" element={<VolumetricLightingSection />} />
           <Route path="/comparison" element={<ComparisonSection />} />
+          <Route path="/process" element={<ProcessSection />} />
         </Routes>
       </div>
     </div>

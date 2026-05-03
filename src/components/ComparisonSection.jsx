@@ -48,9 +48,10 @@ function deriveParams(mass, physicsConfig, overrides = {}) {
   const d = physicsConfig.derive
   const tension = d.dragSpring.tension
   const springFriction = 2 * d.dragSpring.dampingRatio * Math.sqrt(m * tension)
+  const exp = d.throwScale.massExponent ?? 0.5
   return {
     mass: m,
-    throwScale: d.throwScale.numerator / Math.sqrt(m),
+    throwScale: d.throwScale.numerator / Math.pow(m, exp),
     decay: clamp(d.decay.base + d.decay.slope * m, d.decay.min, d.decay.max),
     restitution: clamp(
       d.restitution.base + d.restitution.slope * m,
@@ -211,17 +212,39 @@ function DraggableObject({
       }
 
       if (last) {
+        // Куда указывает жест (s уже = ox + кламп выше) — цель пружины без броска.
+        const targetX = s.x
+        const targetY = s.y
+
         const scale = 1000 * params.throwVelocityScale * params.throwScale
         s.vx = velocity[0] * direction[0] * scale
         s.vy = velocity[1] * direction[1] * scale
+
         if (Math.hypot(s.vx, s.vy) >= params.minSpeed) {
+          /**
+           * Старт физики с текущего кадра пружины, не с offset — иначе тяжёлый объект
+           * «прыгает» к точке отпускания мыши.
+           */
+          let px = x.get()
+          let py = y.get()
+          if (parent && obj) {
+            const w = parent.offsetWidth
+            const h = parent.offsetHeight
+            const r = Math.max(obj.offsetWidth, obj.offsetHeight) / 2
+            const vis = { x: px, y: py, vx: 0, vy: 0 }
+            clampToRect(vis, w, h, r, false)
+            clampToTriangle(vis, w, h, r, false)
+            px = vis.x
+            py = vis.y
+          }
+          s.x = px
+          s.y = py
           startPhysics()
         } else {
-          // Импульса нет — даём пружине доехать до итоговой клампленной позиции.
-          api.start({ x: s.x, y: s.y, config: params.dragSpringConfig })
+          api.start({ x: targetX, y: targetY, config: params.dragSpringConfig })
         }
       } else {
-        // Удержание: цель — клампленная позиция, пружина догоняет с массой и трением.
+        // Удержание: цель — клампленная позиция курсора, пружина догоняет с массой и трением.
         api.start({ x: s.x, y: s.y, config: params.dragSpringConfig })
       }
     },
@@ -292,7 +315,7 @@ function ComparisonCard({ settings }) {
   const afterRef = useRef(null)
 
   return (
-    <article className={`${card.aspectClassName} ${card.className}`}>
+    <article className={card.className}>
       <ComparisonHalf
         halfKey="before"
         half={halves.before}
@@ -326,12 +349,10 @@ function ComparisonCard({ settings }) {
             stroke={diagonal.line.stroke}
             strokeWidth={diagonal.line.strokeWidth}
             vectorEffect="non-scaling-stroke"
+            strokeLinecap="square"
           />
         </svg>
       )}
-
-      <span className={halves.before.label.className}>{halves.before.label.text}</span>
-      <span className={halves.after.label.className}>{halves.after.label.text}</span>
     </article>
   )
 }
@@ -347,39 +368,67 @@ export default function ComparisonSection() {
     return undefined
   }, [])
 
-  const { layout, text, cta } = settings
+  const { layout, text, cta, intro } = settings
 
   return (
     <section id={layout.sectionId} className={layout.sectionClassName}>
       <div className={layout.containerClassName}>
-        <h2 className={text.titleClassName}>{text.title}</h2>
-
-        <div className={`${layout.titleAfterClassName} ${text.paragraphsContainerClassName}`}>
-          {text.paragraphs.map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
+        {/* 65%: только текст. */}
+        <div className={layout.textBlockClassName}>
+          {/* <h2
+            className={`shrink-0 ${text.titleClassName} animate-fade-up-half`}
+            style={{ animationDelay: `${intro.title.delay}s` }}
+          >
+            {text.title}
+          </h2> */}
+          <div className={text.paragraphsContainerClassName}>
+            {text.paragraphs.map((p, i) => {
+              const extra = p.className ? ` ${p.className}` : ''
+              return (
+                <p
+                  key={i}
+                  className={`${text.paragraphBaseClassName} animate-fade-up${extra}`}
+                  style={{
+                    ...p.style,
+                    animationDelay: `${p.delay}s`,
+                  }}
+                >
+                  {p.text}
+                </p>
+              )
+            })}
+          </div>
         </div>
 
+        {/* 35%: карточка До/После + кнопка Next под ней. */}
         <div className={layout.cardSlotClassName}>
-          <ComparisonCard settings={settings} />
-        </div>
+          <div
+            className={`${layout.cardFrameClassName} animate-fade-up`}
+            style={{ animationDelay: `${intro.card.delay}s` }}
+          >
+            <ComparisonCard settings={settings} />
+          </div>
 
-        <div className={layout.ctaSlotClassName}>
-          <Link to={cta.to} aria-label={cta.ariaLabel} className={cta.className}>
-            {cta.text}
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="M5 12h14" />
-              <path d="M13 5l7 7-7 7" />
-            </svg>
-          </Link>
+          <div
+            className={`${layout.ctaSlotClassName} animate-fade-up`}
+            style={{ animationDelay: `${intro.cta.delay}s` }}
+          >
+            <Link to={cta.to} aria-label={cta.ariaLabel} className={cta.className}>
+              {cta.text}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M5 12h14" />
+                <path d="M13 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
         </div>
       </div>
     </section>

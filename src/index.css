@@ -18,10 +18,129 @@
   unicode-range: U+0400-04FF, U+0500-052F, U+2DE0-2DFF, U+A640-A69F;
 }
 
+/** Kalissa — файлы лежат в `public/fonts/` (URL `/fonts/…`). */
+@font-face {
+  font-family: 'Kalissa';
+  src: url('/fonts/KalissaRegular_0.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/** Декоративные свиши — отдельное семейство, подключай там, где нужны орнаменты. */
+@font-face {
+  font-family: 'Kalissa Swashes';
+  src: url('/fonts/KalissaSwashes_0.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * Museo Cyrl — несколько начертаний; имена файлов с пробелом и `(1)` в URL закодированы.
+ * Файл `MUSEO_CYRL_500_REGULAR` подключён как 400 и 500 — так работают и `font-normal`, и `font-medium`.
+ */
+@font-face {
+  font-family: 'Museo Cyrl';
+  src: url('/fonts/EXLJBRIS_-_MUSEO_CYRL_100-WEBFONT%20(1).TTF') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Cyrl';
+  src: url('/fonts/EXLJBRIS_-_MUSEO_CYRL_300-WEBFONT%20(1).TTF') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Cyrl';
+  src: url('/fonts/MUSEO_CYRL_500_REGULAR-WEBFONT%20(1).TTF') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Cyrl';
+  src: url('/fonts/MUSEO_CYRL_500_REGULAR-WEBFONT%20(1).TTF') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Cyrl';
+  src: url('/fonts/EXLJBRIS_-_MUSEO_CYRL_900-WEBFONT%20(1).TTF') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * ST Rome — файлы в `public/fonts/` (STRomeTrial-*.ttf).
+ */
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Thin.ttf') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ST Rome';
+  src: url('/fonts/STRomeTrial-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-brand: 'Bebas Neue', 'Inter', system-ui, sans-serif;
+  --font-kalissa: 'Kalissa', 'Inter', system-ui, sans-serif;
+  --font-kalissa-swashes: 'Kalissa Swashes', 'Kalissa', 'Inter', system-ui, sans-serif;
+  --font-museo-cyrl: 'Museo Cyrl', 'Inter', system-ui, sans-serif;
+  --font-st-rome: 'ST Rome', 'Inter', system-ui, sans-serif;
 
   --animate-fade-up: fade-up 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  /** Как fade-up, но финальная непрозрачность 0.5 — для текста, где нужна полупрозрачность после анимации (обычный fade-up задаёт opacity: 1 и перебивает `opacity-50`). */
+  --animate-fade-up-half: fade-up-half 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --animate-fade-page: fade-page 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @keyframes fade-up {
@@ -31,6 +150,17 @@
     }
     to {
       opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-up-half {
+    from {
+      opacity: 0;
+      transform: translateY(0.4em);
+    }
+    to {
+      opacity: 0.5;
       transform: translateY(0);
     }
   }

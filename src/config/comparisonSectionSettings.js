@@ -3,15 +3,62 @@
  * Файл ловится HMR — при сохранении страница не перезагружается.
  */
 export const COMPARISON_SECTION_SETTINGS = {
+  /**
+   * Раскладка: секция занимает ровно вьюпорт (h-svh). Внутри два блока —
+   * текст и карточка.
+   *
+   *  - mobile (< lg): flex-col. Текст сверху, карточка снизу.
+   *    Пропорция 50/50, чтобы карточка получила достаточно высоты для
+   *    выразительной диагонали (иначе она была бы «широкой и плоской»).
+   *  - desktop (≥ lg): flex-row. Текст слева 65%, карточка справа 35%.
+   *    На широких экранах карточка и так вертикально вытянута, лишняя
+   *    ширина ей не нужна.
+   *
+   * Доли заданы через `flex-[X_1_0]` (grow-shrink-basis).
+   * `min-h-0` / `min-w-0` нужны, чтобы вложенные flex-контейнеры могли
+   * сжиматься меньше своего контента и не ломать layout.
+   */
   layout: {
     sectionId: 'comparison',
-    sectionClassName:
-      'relative min-h-svh w-full bg-black px-6 py-24 sm:px-10 sm:py-28 lg:px-16 lg:py-32',
-    containerClassName: 'mx-auto flex max-w-6xl flex-col',
-    /** Отступы между блоками внутри контейнера. */
-    titleAfterClassName: 'mt-10',
-    cardSlotClassName: 'mt-16',
-    ctaSlotClassName: 'mt-12 flex justify-end',
+    sectionClassName: 'relative h-svh w-full overflow-hidden bg-black',
+    containerClassName:
+      'flex h-full w-full flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16 lg:flex-row lg:items-stretch lg:gap-14 lg:px-16 lg:py-20',
+    /** Текстовый блок: 50% высоты на мобиле / 65% ширины на десктопе. `h-full` — колонка на всю высоту слота; параграфы растягиваются внутри через `paragraphsContainerClassName`. */
+    textBlockClassName:
+      'flex h-full min-h-0 min-w-0 flex-[50_1_0] flex-col gap-6 lg:flex-[65_1_0]',
+    /**
+     * Слот карточки: 50% высоты на мобиле / 35% ширины на десктопе.
+     * Колонка из самой карточки и кнопки Next.
+     * `items-stretch` — карточка тянется на всю ширину слота.
+     * `flex-col` — кнопка располагается ПОД карточкой.
+     */
+    cardSlotClassName:
+      'flex min-h-0 min-w-0 flex-[50_1_0] flex-col items-stretch gap-4 lg:flex-[35_1_0]',
+    /** Обёртка вокруг ComparisonCard внутри cardSlot — забирает всё свободное место по высоте. */
+    cardFrameClassName: 'min-h-0 min-w-0 w-full flex-1',
+    /** Слот CTA-кнопки под карточкой: справа, фиксированная высота (shrink-0). */
+    ctaSlotClassName: 'flex shrink-0 justify-end',
+  },
+
+  /**
+   * Задержки fade-in каждого визуального элемента (в секундах).
+   * Анимация — Tailwind-утилита `animate-fade-up` (см. `src/index.css`).
+   *
+   * Учти: оборачивающий `animate-fade-page` в App.jsx сам прогоняет fade
+   * страницы за ~0.45с. Поэтому имеет смысл ставить задержки ≥ 0.45,
+   * иначе элемент начнёт появляться, пока ещё затемнён весь экран.
+   *
+   *  - title.delay   — задержка заголовка.
+   *  - card.delay    — задержка появления карточки.
+   *  - cta.delay     — задержка появления кнопки Next.
+   *
+   * Задержка каждого параграфа задаётся отдельно в `text.paragraphs[]`,
+   * поле `delay` у каждого элемента (сек).
+   */
+  intro: {
+    title: { delay: 0.5 },
+    card: { delay: 1.1 },
+    cta: { delay: 1.5 },
   },
 
   /** Кнопка перехода на следующую страницу. */
@@ -24,44 +71,81 @@ export const COMPARISON_SECTION_SETTINGS = {
   },
 
   text: {
-    title: 'Заголовок',
+    title: 'Об Агентстве',
+    /**
+     * Outline-заголовок: `font-brand` (Bebas), без заливки, белая обводка.
+     * Итоговая «полупрозрачность» задаётся анимацией `animate-fade-up-half` в JSX
+     * (не через `opacity-*`: обычный `animate-fade-up` в конце ставит opacity: 1 и перебивает класс).
+     */
     titleClassName:
-      'font-brand text-5xl uppercase leading-[0.95] tracking-[0.02em] text-white sm:text-7xl lg:text-8xl',
+      'font-brand text-5xl uppercase leading-[0.95] tracking-[0.02em] text-transparent [-webkit-text-stroke:0.5px_white] sm:text-7xl sm:[-webkit-text-stroke:1px_white] lg:text-8xl lg:[-webkit-text-stroke:2.5px_white] drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)]',
 
-    paragraphs: [
-      'Первая строка описания — короткий вступительный тезис.',
-      'Вторая строка — раскрываем суть подхода в одном предложении.',
-      'Третья строка — финальный аккорд или приглашение посмотреть результат.',
-    ],
+    /**
+     * Вертикальное распределение: `flex-1` + `justify-evenly` — свободная высота
+     * делится на равные зазоры: от верхнего края до 1-го параграфа, между соседними
+     * параграфами и от последнего до нижнего края (всё с одинаковым шагом).
+     * У `justify-between` от краёв зазор был бы 0, что не совпадало бы с шагом между строками.
+     */
     paragraphsContainerClassName:
-      'max-w-2xl space-y-3 text-base leading-relaxed text-white/70 sm:text-lg',
+      'flex min-h-0 w-full max-w-2xl flex-1 flex-col justify-evenly',
+
+    /**
+     * Общая типографика без семейства шрифта — `font-*` задаётся у каждого параграфа
+     * в `paragraphs[].className`. Иначе `font-museo-cyrl` из базы побеждает `font-kalissa`
+     * и др. в финальном CSS Tailwind (не из‑за порядка классов в строке).
+     */
+    paragraphBaseClassName: 'font-medium leading-relaxed text-white/90 sm:text-lg',
+
+    /**
+     * Каждый параграф настраивается отдельно:
+     *  - `text`   — содержимое
+     *  - `delay`  — задержка fade-in (сек)
+     *  - `className` — опционально, дополнительные Tailwind-классы (добавляются к base)
+     *  - `style`  — опционально, inline-стили (редкие случаи: letterSpacing, color из JS)
+     */
+    paragraphs: [
+      {
+        text: 'Мы делаем вещи тяжелее',
+        delay: 0.7,
+        className: 'font-st-rome text-white text-3xl text-right sm:text-xl',
+      },
+      {
+        text: 'Реально тупо увеличиваем вес вещей',
+        delay: 0.88,
+        className: 'font-museo-cyrl text-1xl text-white/75',
+      },
+      {
+        text: 'И всё.',
+        delay: 1.06,
+        className: 'font-kalissa text-right text-7xl tracking-[0.2em] text-white/50',
+      },
+    ],
   },
 
   card: {
-    /** Tailwind-класс пропорций карточки (можно поменять на aspect-square / aspect-[4/5] и т.д.) */
-    aspectClassName: 'aspect-[4/3]',
+    /** Прозрачная карточка: только заметная белая обводка по периметру (класс ниже). */
     className:
-      'relative w-full overflow-hidden rounded-3xl border border-white/10 bg-black shadow-heavy',
+      'relative h-full w-full overflow-hidden rounded-3xl border-2 border-white bg-transparent',
 
     /** Диагональная разметка. По умолчанию идёт из BL в TR. */
     diagonal: {
       /** Полигоны clip-path для половин. Меняй вместе с side у соответствующих половинок. */
       beforeClipPath: 'polygon(0 0, 100% 0, 0 100%)',
       afterClipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
-      /** Тонкая разделительная линия (SVG). */
+      /** Линия по диагонали — в тон рамке (белая, non-scaling stroke). */
       line: {
         show: true,
         x1: 0,
         y1: 100,
         x2: 100,
         y2: 0,
-        stroke: 'rgba(255,255,255,0.22)',
-        strokeWidth: 1,
+        stroke: 'rgba(255,255,255,1)',
+        strokeWidth: 2,
       },
     },
 
     /**
-     * Половины карточки: какой фон, какой side для физики, где лейбл.
+     * Половины карточки: фон убран (`bg-transparent`).
      * `side` определяет неравенство для треугольного клампа:
      *   'upper-left'  — cx_frac + cy_frac <= 1
      *   'lower-right' — cx_frac + cy_frac >= 1
@@ -69,21 +153,11 @@ export const COMPARISON_SECTION_SETTINGS = {
     halves: {
       before: {
         side: 'upper-left',
-        backgroundClassName: 'bg-gradient-to-br from-zinc-800 via-zinc-900 to-black',
-        label: {
-          text: 'До',
-          className:
-            'pointer-events-none absolute left-5 top-5 inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/85 backdrop-blur-md',
-        },
+        backgroundClassName: 'bg-transparent',
       },
       after: {
         side: 'lower-right',
-        backgroundClassName: 'bg-gradient-to-tl from-amber-900/30 via-zinc-900 to-zinc-950',
-        label: {
-          text: 'После',
-          className:
-            'pointer-events-none absolute bottom-5 right-5 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/85 backdrop-blur-md',
-        },
+        backgroundClassName: 'bg-transparent',
       },
     },
   },
@@ -123,7 +197,8 @@ export const COMPARISON_SECTION_SETTINGS = {
    * Параметры физики и формулы вывода из массы.
    *
    * Производные параметры:
-   *   throwScale  = throwScale.numerator / sqrt(mass)
+   *   throwScale  = throwScale.numerator / mass^massExponent
+   *                 (при exponent 0.5 это 1/√m; меньший exponent — слабее штраф за тяжесть)
    *   decay       = clamp(decay.base + decay.slope * mass, decay.min, decay.max)
    *   restitution = clamp(restitution.base + restitution.slope * mass, restitution.min, restitution.max)
    *
@@ -141,8 +216,12 @@ export const COMPARISON_SECTION_SETTINGS = {
    */
   physics: {
     derive: {
-      throwScale: { numerator: 1 },
-      decay: { base: 0.85, slope: -0.08, min: 0.3, max: 0.9 },
+      throwScale: {
+        numerator: 2.2,
+        /** Чем меньше, тем слабее ограничение скорости броска для тяжёлых (0.5 ≈ √mass). */
+        massExponent: 0.36,
+      },
+      decay: { base: 0.88, slope: -0.045, min: 0.62, max: 0.92 },
       restitution: { base: 0.7, slope: -0.09, min: 0.1, max: 0.8 },
       dragSpring: {
         tension: 240,
@@ -152,6 +231,6 @@ export const COMPARISON_SECTION_SETTINGS = {
     minSpeed: 6,
     maxStepDt: 0.05,
     /** Множитель импульса от жеста: pxPerSec = gestureVelocityPxPerMs * 1000 * throwVelocityScale * throwScale. */
-    throwVelocityScale: 1,
+    throwVelocityScale: 1.4,
   },
 }

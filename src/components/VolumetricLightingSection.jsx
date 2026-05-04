@@ -816,8 +816,8 @@ export default function VolumetricLightingSection() {
         </Link>
       </div>
 
-      <div className="pointer-events-none absolute inset-0 z-10 flex items-center px-6 sm:px-12 md:px-16 lg:px-24">
-        <h1 className="font-brand -translate-y-[255%] text-left uppercase leading-[0.9] tracking-tight text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)] text-6xl sm:text-10xl md:text-12xl lg:text-[14rem]">
+      <div className="pointer-events-none absolute left-0 top-0 z-10 flex w-full justify-start px-6 pt-20 sm:px-12 sm:pt-24 md:px-16 md:pt-14 lg:px-24 lg:pt-10">
+        <h1 className="font-brand text-left uppercase leading-[0.9] tracking-tight text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)] text-6xl sm:text-10xl md:text-12xl lg:text-[14rem]">
           <span
             className="block animate-fade-up tracking-[0.02em] text-transparent [-webkit-text-stroke:1.5px_white] sm:[-webkit-text-stroke:2px_white] lg:[-webkit-text-stroke:2.5px_white]"
             style={{ animationDelay: `${settings.overlay.brandIntro.initialDelay}s` }}

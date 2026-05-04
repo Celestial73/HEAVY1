@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import * as THREE from 'three/webgpu'
 import {
   Fn,
@@ -20,6 +19,7 @@ import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js'
 import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { VOLUMETRIC_LIGHTING_SETTINGS as volumetricLightingDefaults } from '../config/volumetricLightingSettings.js'
+import NextNavLink from './NextNavLink'
 
 function createTexture3D(cfg) {
   const {
@@ -147,7 +147,30 @@ function resolvePublicAssetUrl(url) {
   return `${normalizedBase}${normalizedUrl}`
 }
 
+function pickRandomItems(items, count) {
+  const pool = [...items]
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  return pool.slice(0, Math.max(0, Math.min(count, pool.length)))
+}
+
 async function createSpinnableObject(cfg) {
+  if (cfg.type === 'gltf' || cfg.type === 'glb') {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
+    const loader = new GLTFLoader()
+    const gltf = await loader.loadAsync(resolvePublicAssetUrl(cfg.gltfUrl))
+    const root = gltf.scene
+    if (typeof cfg.gltfScale === 'number') root.scale.setScalar(cfg.gltfScale)
+    root.traverse((o) => {
+      if (!o.isMesh) return
+      o.castShadow = cfg.castShadow ?? true
+      o.receiveShadow = cfg.receiveShadow ?? false
+    })
+    return root
+  }
+
   if (cfg.type !== 'obj') return createSpinnableMesh(cfg)
 
   const [{ OBJLoader }, { MTLLoader }] = await Promise.all([
@@ -371,7 +394,9 @@ export default function VolumetricLightingSection() {
       const physics = S.physics || { enabled: false }
       const placedPositions = []
       const spinnables = []
-      for (const cfg of S.spinnables) {
+      const randomCount = S.randomSpinnablesCount ?? 4
+      const selectedSpinnables = pickRandomItems(S.spinnables ?? [], randomCount)
+      for (const cfg of selectedSpinnables) {
         const mesh = await createSpinnableObject(cfg)
 
         let x = cfg.position[0]
@@ -638,7 +663,9 @@ export default function VolumetricLightingSection() {
               const dy = s.pendingDY
               s.targetVelocityY = (dx * sy) / delta
               s.targetVelocityX = (dy * sx) / delta
-              s.targetVelocityZ = ((dx + dy) * sz) / delta
+              // Крен вокруг Z считаем от диагонального жеста; разность dx/dy
+              // даёт более стабильный twist, чем сумма (которая часто взаимно гасится).
+              s.targetVelocityZ = ((dx - dy) * sz) / delta
             } else if (!isActive) {
               s.targetVelocityX = 0
               s.targetVelocityY = 0
@@ -790,8 +817,9 @@ export default function VolumetricLightingSection() {
           </svg>
         </button>
 
-        <Link
-          to="/comparison"
+        <NextNavLink
+          to={settings.overlay.nextLink.to}
+          ariaLabel={settings.overlay.nextLink.ariaLabel}
           style={{
             animationDelay: `${
               settings.overlay.controlsIntro.initialDelay +
@@ -800,20 +828,8 @@ export default function VolumetricLightingSection() {
           }}
           className="pointer-events-auto inline-flex h-12 animate-fade-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
         >
-          Next
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
-          >
-            <path d="M5 12h14" />
-            <path d="M13 5l7 7-7 7" />
-          </svg>
-        </Link>
+          {settings.overlay.nextLink.text}
+        </NextNavLink>
       </div>
 
       <div className="pointer-events-none absolute left-0 top-0 z-10 flex w-full justify-start px-6 pt-20 sm:px-12 sm:pt-24 md:px-16 md:pt-14 lg:px-24 lg:pt-10">

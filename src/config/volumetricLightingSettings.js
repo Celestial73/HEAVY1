@@ -151,12 +151,14 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
    * Все интерактивные предметы сцены. По одному на пользовательский тычок.
    * Каждый предмет можно крутить независимо, на него нацелен raycast по нажатию.
    *
-   * type: 'teapot' | 'box' | 'sphere' | 'icosahedron' | 'torus' | 'torusKnot' | 'cone' | 'cylinder' | 'obj'
+   * type: 'teapot' | 'box' | 'sphere' | 'icosahedron' | 'torus' | 'torusKnot' | 'cone' | 'cylinder' | 'obj' | 'gltf' | 'glb'
    * args: параметры конструктора геометрии (см. switch в createSpinnableMesh).
    * Для `type: 'obj'`: используйте `objUrl`, опционально `mtlUrl`, `textureSet` и `objScale`.
+   * Для `type: 'gltf' | 'glb'`: используйте `gltfUrl` и опционально `gltfScale`.
    * material: опции MeshStandardMaterial (color, roughness, metalness, side: 'front'|'back'|'double').
    * sensitivity (опц.): { x, y, z } переопределяет interaction.dragSensitivity*.
    */
+  randomSpinnablesCount: 4,
   spinnables: [
     {
       id: 'teapot',
@@ -173,7 +175,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       position: [-2.6, -2.65, 1.4],
       material: { color: 0xff8b4d, roughness: 0.4, metalness: 0.2 },
       castShadow: true,
-      sensitivity: { x: 0.012, y: 0.012, z: 0.006 },
+      sensitivity: { x: 0.012, y: 0.012, z: 0.012 },
     },
     {
       id: 'icosahedron',
@@ -194,9 +196,35 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
         prefix: '6_Pounder_Brass',
         suffixes: ['BaseColor.png', 'Normal.png', 'Roughness.png', 'Metallic.png'],
       },
-      objScale: 0.3,
+      objScale: 0.1,
       position: [-1, -2.4, -2.4],
-      material: { color: 0xff64b7, roughness: 0.25, metalness: 0.4 },
+      material: { color: 0xffffff, roughness: 0.25, metalness: 0.4 },
+      castShadow: true,
+    },
+    {
+      id: 'leg-extension',
+      type: 'obj',
+      objUrl: '/models/Leg%20Extension_OBJ.obj',
+      objScale: 0.03,
+      position: [-1.4, -2.2, 1.8],
+      material: { color: 0xf6f6f6, roughness: 0.5, metalness: 0.2, side: 'double' },
+      castShadow: true,
+    },
+    {
+      id: 'skyscanner-100',
+      type: 'obj',
+      objUrl: '/models/skyscanner%20100.obj',
+      objScale: 0.24,
+      position: [1.6, -2.1, -1.9],
+      material: { color: 0xffffff, roughness: 0.35, metalness: 0.45, side: 'double' },
+      castShadow: true,
+    },
+    {
+      id: 'rock',
+      type: 'glb',
+      gltfUrl: '/models/rock.glb',
+      gltfScale: 0.9,
+      position: [0.5, -2.35, 2.1],
       castShadow: true,
     },
   ],
@@ -307,7 +335,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     /** Радиан на пиксель: горизонтальный жест → разворот (вокруг локальной оси Y). */
     dragSensitivityY: 0.01,
     /** Радиан на пиксель (по сумме dx+dy): крен при диагональном жесте (вокруг локальной оси Z). */
-    dragSensitivityZ: 0.005,
+    dragSensitivityZ: 0.012,
     /**
      * Сколько секунд предмет «раскручивается» до целевой скорости при удержании.
      * Больше — тяжелее и инертнее. 0 — мгновенно.
@@ -334,6 +362,12 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       initialDelay: 4,
       /** Промежуток между соседними кнопками (сек). */
       stagger: 0.2,
+    },
+    /** Кнопка перехода на следующую страницу (оверлей снизу). */
+    nextLink: {
+      text: 'ОБ АГЕНТСТВЕ',
+      ariaLabel: 'Перейти к странице сравнения',
+      to: '/comparison',
     },
   },
 }

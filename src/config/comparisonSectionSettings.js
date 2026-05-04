@@ -2,6 +2,11 @@
  * Все настройки секции «До/После». Редактируйте здесь.
  * Файл ловится HMR — при сохранении страница не перезагружается.
  */
+const COMPARISON_OBJECT_IMAGE_SRC = '/images/—Pngtree—ceramic vase_16234345.png'
+/** Tailwind-классы для `<img>` внутри draggable (размер/обрезка/тень). */
+const COMPARISON_OBJECT_IMAGE_CLASS_NAME =
+  'h-full w-full object-contain drop-shadow-[0_6px_22px_rgba(0,0,0,0.55)]'
+
 export const COMPARISON_SECTION_SETTINGS = {
   /**
    * Раскладка: секция занимает ровно вьюпорт (h-svh). Внутри два блока —
@@ -165,29 +170,32 @@ export const COMPARISON_SECTION_SETTINGS = {
   /**
    * Перетаскиваемые объекты внутри половин.
    * `half` — ключ из card.halves.
-   * `icon` — ключ из реестра иконок в компоненте: 'feather' | 'kettlebell'.
+   * `icon` — ключ из реестра иконок в компоненте: 'feather' | 'kettlebell' (если не задан `imageSrc`).
+   * `imageSrc` — путь к картинке в `public/` (один и тот же файл можно использовать в обеих половинах).
+   * `imageClassName` — опционально: переопределить `objectsImageClassName` для конкретного объекта.
    * `mass` — основной регулятор «веса» (чем больше, тем сложнее бросить, тише отскок).
    * `physicsOverrides` — точечно переопределяет вычисленные параметры (см. physics.derive).
    */
+  objectsImageClassName: COMPARISON_OBJECT_IMAGE_CLASS_NAME,
   objects: [
     {
-      id: 'before-feather',
+      id: 'before-vase',
       half: 'before',
-      icon: 'feather',
+      imageSrc: COMPARISON_OBJECT_IMAGE_SRC,
       mass: 0.4,
       ariaLabel: 'Перетащите объект «До»',
-      sizeClassName: 'h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
+      sizeClassName: 'h-32 w-32 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
       /** Стартовая позиция центра объекта в долях родителя (0..1). */
       initial: { leftFrac: 0.33, topFrac: 0.33 },
       physicsOverrides: {},
     },
     {
-      id: 'after-kettlebell',
+      id: 'after-vase',
       half: 'after',
-      icon: 'kettlebell',
+      imageSrc: COMPARISON_OBJECT_IMAGE_SRC,
       mass: 40,
       ariaLabel: 'Перетащите объект «После»',
-      sizeClassName: 'h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
+      sizeClassName: 'h-32 w-32 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
       initial: { leftFrac: 0.67, topFrac: 0.67 },
       physicsOverrides: {},
     },

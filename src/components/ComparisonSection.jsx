@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { animated, useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { COMPARISON_SECTION_SETTINGS as defaults } from '../config/comparisonSectionSettings.js'
+import NextNavLink from './NextNavLink'
 
 function FeatherIcon() {
   return (
@@ -39,8 +39,28 @@ const ICON_REGISTRY = {
   kettlebell: KettlebellIcon,
 }
 
+const DEFAULT_COMPARISON_IMAGE_CLASS_NAME =
+  'h-full w-full object-contain drop-shadow-[0_6px_22px_rgba(0,0,0,0.55)]'
+
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v))
+}
+
+function resolvePublicAssetUrl(url) {
+  if (!url) return url
+  if (/^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url
+
+  const base = import.meta.env.BASE_URL || '/'
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const normalizedUrl = url.startsWith('/') ? url.slice(1) : url
+  return `${normalizedBase}${normalizedUrl}`
+}
+
+function encodeUriPreservingSlashes(path) {
+  return path
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
 }
 
 function deriveParams(mass, physicsConfig, overrides = {}) {
@@ -92,8 +112,21 @@ function DraggableObject({
   const [{ x, y }, api] = useSpring(() => ({ x: 0, y: 0 }))
   const physicsState = useRef({ x: 0, y: 0, vx: 0, vy: 0 })
   const rafRef = useRef(null)
+  const springMotionRef = useRef({ x: 0, y: 0, t: 0 })
+  const springSampleRafRef = useRef(null)
 
   const params = deriveParams(mass, physicsConfig, physicsOverrides)
+
+  const scheduleSpringMotionSample = () => {
+    if (springSampleRafRef.current != null) {
+      cancelAnimationFrame(springSampleRafRef.current)
+    }
+    springSampleRafRef.current = requestAnimationFrame(() => {
+      springSampleRafRef.current = null
+      const now = performance.now()
+      springMotionRef.current = { x: x.get(), y: y.get(), t: now }
+    })
+  }
 
   const clampToRect = (s, w, h, r, withReflect) => {
     const minX = -initialLeftFrac * w + r
@@ -147,6 +180,10 @@ function DraggableObject({
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
+    if (springSampleRafRef.current != null) {
+      cancelAnimationFrame(springSampleRafRef.current)
+      springSampleRafRef.current = null
+    }
   }
 
   const startPhysics = () => {
@@ -195,7 +232,11 @@ function DraggableObject({
 
   const bind = useDrag(
     ({ first, last, offset: [ox, oy], velocity, direction }) => {
-      if (first) stopPhysics()
+      if (first) {
+        stopPhysics()
+        const now = performance.now()
+        springMotionRef.current = { x: x.get(), y: y.get(), t: now }
+      }
 
       const parent = boundsRef.current
       const obj = objRef.current
@@ -212,13 +253,33 @@ function DraggableObject({
       }
 
       if (last) {
+        if (springSampleRafRef.current != null) {
+          cancelAnimationFrame(springSampleRafRef.current)
+          springSampleRafRef.current = null
+        }
         // Куда указывает жест (s уже = ox + кламп выше) — цель пружины без броска.
         const targetX = s.x
         const targetY = s.y
 
-        const scale = 1000 * params.throwVelocityScale * params.throwScale
-        s.vx = velocity[0] * direction[0] * scale
-        s.vy = velocity[1] * direction[1] * scale
+        const now = performance.now()
+        const sm = springMotionRef.current
+        const pxNow = x.get()
+        const pyNow = y.get()
+        const dtMs = Math.min(50, Math.max(1e-3, now - sm.t))
+        const springVx = ((pxNow - sm.x) / dtMs) * 1000
+        const springVy = ((pyNow - sm.y) / dtMs) * 1000
+
+        const gestureScale = 1000 * params.throwVelocityScale * params.throwScale
+        const gestureVx = velocity[0] * direction[0] * gestureScale
+        const gestureVy = velocity[1] * direction[1] * gestureScale
+
+        const massNorm = clamp((mass - 0.4) / (40 - 0.4), 0, 1)
+        const blend = massNorm
+        const blendedVx = springVx * blend + gestureVx * (1 - blend)
+        const blendedVy = springVy * blend + gestureVy * (1 - blend)
+
+        s.vx = blendedVx
+        s.vy = blendedVy
 
         if (Math.hypot(s.vx, s.vy) >= params.minSpeed) {
           /**
@@ -246,6 +307,7 @@ function DraggableObject({
       } else {
         // Удержание: цель — клампленная позиция курсора, пружина догоняет с массой и трением.
         api.start({ x: s.x, y: s.y, config: params.dragSpringConfig })
+        scheduleSpringMotionSample()
       }
     },
     {
@@ -274,7 +336,15 @@ function DraggableObject({
   )
 }
 
-function ComparisonHalf({ halfKey, half, objects, physics, clipPath, boundsRef }) {
+function ComparisonHalf({
+  halfKey,
+  half,
+  objects,
+  physics,
+  clipPath,
+  boundsRef,
+  objectsImageClassName,
+}) {
   const fallbackIcon = halfKey === 'before' ? FeatherIcon : KettlebellIcon
   return (
     <div
@@ -285,7 +355,10 @@ function ComparisonHalf({ halfKey, half, objects, physics, clipPath, boundsRef }
       {objects
         .filter((o) => o.half === halfKey)
         .map((obj) => {
-          const Icon = ICON_REGISTRY[obj.icon] ?? fallbackIcon
+          const Icon = obj.icon ? ICON_REGISTRY[obj.icon] ?? fallbackIcon : fallbackIcon
+          const imageSrc = obj.imageSrc
+            ? encodeUriPreservingSlashes(resolvePublicAssetUrl(obj.imageSrc))
+            : null
           return (
             <DraggableObject
               key={obj.id}
@@ -299,7 +372,16 @@ function ComparisonHalf({ halfKey, half, objects, physics, clipPath, boundsRef }
               physicsConfig={physics}
               physicsOverrides={obj.physicsOverrides}
             >
-              <Icon />
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt=""
+                  draggable={false}
+                  className={obj.imageClassName ?? objectsImageClassName}
+                />
+              ) : (
+                <Icon />
+              )}
             </DraggableObject>
           )
         })}
@@ -308,7 +390,7 @@ function ComparisonHalf({ halfKey, half, objects, physics, clipPath, boundsRef }
 }
 
 function ComparisonCard({ settings }) {
-  const { card, objects, physics } = settings
+  const { card, objects, physics, objectsImageClassName } = settings
   const { halves, diagonal } = card
 
   const beforeRef = useRef(null)
@@ -323,6 +405,7 @@ function ComparisonCard({ settings }) {
         physics={physics}
         clipPath={diagonal.beforeClipPath}
         boundsRef={beforeRef}
+        objectsImageClassName={objectsImageClassName ?? DEFAULT_COMPARISON_IMAGE_CLASS_NAME}
       />
 
       <ComparisonHalf
@@ -332,6 +415,7 @@ function ComparisonCard({ settings }) {
         physics={physics}
         clipPath={diagonal.afterClipPath}
         boundsRef={afterRef}
+        objectsImageClassName={objectsImageClassName ?? DEFAULT_COMPARISON_IMAGE_CLASS_NAME}
       />
 
       {diagonal.line.show && (
@@ -413,21 +497,9 @@ export default function ComparisonSection() {
             className={`${layout.ctaSlotClassName} animate-fade-up`}
             style={{ animationDelay: `${intro.cta.delay}s` }}
           >
-            <Link to={cta.to} aria-label={cta.ariaLabel} className={cta.className}>
+            <NextNavLink to={cta.to} ariaLabel={cta.ariaLabel} className={cta.className}>
               {cta.text}
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M5 12h14" />
-                <path d="M13 5l7 7-7 7" />
-              </svg>
-            </Link>
+            </NextNavLink>
           </div>
         </div>
       </div>

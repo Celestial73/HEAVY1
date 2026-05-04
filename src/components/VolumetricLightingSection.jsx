@@ -137,6 +137,16 @@ function createSpinnableMesh(cfg) {
   return mesh
 }
 
+function resolvePublicAssetUrl(url) {
+  if (!url) return url
+  if (/^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url
+
+  const base = import.meta.env.BASE_URL || '/'
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const normalizedUrl = url.startsWith('/') ? url.slice(1) : url
+  return `${normalizedBase}${normalizedUrl}`
+}
+
 async function createSpinnableObject(cfg) {
   if (cfg.type !== 'obj') return createSpinnableMesh(cfg)
 
@@ -147,11 +157,11 @@ async function createSpinnableObject(cfg) {
   const loader = new OBJLoader()
   if (cfg.mtlUrl) {
     const mtlLoader = new MTLLoader()
-    const materials = await mtlLoader.loadAsync(cfg.mtlUrl)
+    const materials = await mtlLoader.loadAsync(resolvePublicAssetUrl(cfg.mtlUrl))
     materials.preload()
     loader.setMaterials(materials)
   }
-  const root = await loader.loadAsync(cfg.objUrl)
+  const root = await loader.loadAsync(resolvePublicAssetUrl(cfg.objUrl))
   const m = cfg.material || {}
   const textureLoader = new THREE.TextureLoader()
   const usePbrTextures =
@@ -187,7 +197,7 @@ async function createSpinnableObject(cfg) {
 
     if (!pbrCache.has(materialName)) {
       const [baseColorSuffix, normalSuffix, roughnessSuffix, metallicSuffix] = cfg.textureSet.suffixes
-      const textureBase = `${cfg.textureSet.folder}/${cfg.textureSet.prefix}_${materialName}`
+      const textureBase = `${resolvePublicAssetUrl(cfg.textureSet.folder)}/${cfg.textureSet.prefix}_${materialName}`
       const [map, normalMap, roughnessMap, metalnessMap] = await Promise.all([
         loadTextureMaybe(`${textureBase}_${baseColorSuffix}`, THREE.SRGBColorSpace),
         loadTextureMaybe(`${textureBase}_${normalSuffix}`),

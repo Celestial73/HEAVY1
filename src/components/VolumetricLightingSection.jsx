@@ -137,6 +137,99 @@ function createSpinnableMesh(cfg) {
   return mesh
 }
 
+async function createSpinnableObject(cfg) {
+  if (cfg.type !== 'obj') return createSpinnableMesh(cfg)
+
+  const [{ OBJLoader }, { MTLLoader }] = await Promise.all([
+    import('three/addons/loaders/OBJLoader.js'),
+    import('three/addons/loaders/MTLLoader.js'),
+  ])
+  const loader = new OBJLoader()
+  if (cfg.mtlUrl) {
+    const mtlLoader = new MTLLoader()
+    const materials = await mtlLoader.loadAsync(cfg.mtlUrl)
+    materials.preload()
+    loader.setMaterials(materials)
+  }
+  const root = await loader.loadAsync(cfg.objUrl)
+  const m = cfg.material || {}
+  const textureLoader = new THREE.TextureLoader()
+  const usePbrTextures =
+    cfg.textureSet?.enabled &&
+    cfg.textureSet?.folder &&
+    cfg.textureSet?.prefix &&
+    Array.isArray(cfg.textureSet?.suffixes)
+
+  const loadTextureMaybe = async (url, colorSpace) => {
+    try {
+      const tex = await textureLoader.loadAsync(url)
+      if (colorSpace) tex.colorSpace = colorSpace
+      return tex
+    } catch {
+      return null
+    }
+  }
+
+  const toArray = (mat) => (Array.isArray(mat) ? mat : [mat]).filter(Boolean)
+  const pbrCache = new Map()
+
+  const applyToMaterial = async (material, materialName) => {
+    if (!material) return
+    if (m.side !== undefined && material.side !== undefined) material.side = resolveMaterialSide(m.side)
+    if (m.color !== undefined && material.color) material.color.setHex(m.color)
+    if (m.roughness !== undefined && material.roughness !== undefined) material.roughness = m.roughness
+    if (m.metalness !== undefined && material.metalness !== undefined) material.metalness = m.metalness
+
+    if (!usePbrTextures || !materialName) {
+      material.needsUpdate = true
+      return
+    }
+
+    if (!pbrCache.has(materialName)) {
+      const [baseColorSuffix, normalSuffix, roughnessSuffix, metallicSuffix] = cfg.textureSet.suffixes
+      const textureBase = `${cfg.textureSet.folder}/${cfg.textureSet.prefix}_${materialName}`
+      const [map, normalMap, roughnessMap, metalnessMap] = await Promise.all([
+        loadTextureMaybe(`${textureBase}_${baseColorSuffix}`, THREE.SRGBColorSpace),
+        loadTextureMaybe(`${textureBase}_${normalSuffix}`),
+        loadTextureMaybe(`${textureBase}_${roughnessSuffix}`),
+        loadTextureMaybe(`${textureBase}_${metallicSuffix}`),
+      ])
+      pbrCache.set(materialName, { map, normalMap, roughnessMap, metalnessMap })
+    }
+
+    const texSet = pbrCache.get(materialName)
+    if (texSet.map) material.map = texSet.map
+    if (texSet.normalMap) material.normalMap = texSet.normalMap
+    if (texSet.roughnessMap) material.roughnessMap = texSet.roughnessMap
+    if (texSet.metalnessMap) material.metalnessMap = texSet.metalnessMap
+    material.needsUpdate = true
+  }
+
+  const materialTasks = []
+  root.traverse((o) => {
+    if (!o.isMesh) return
+    const mats = toArray(o.material)
+    for (const mat of mats) {
+      materialTasks.push(applyToMaterial(mat, mat.name || o.material?.name || o.name || ''))
+    }
+    o.castShadow = cfg.castShadow ?? true
+    o.receiveShadow = cfg.receiveShadow ?? false
+  })
+  await Promise.all(materialTasks)
+
+  if (typeof cfg.objScale === 'number') root.scale.setScalar(cfg.objScale)
+  return root
+}
+
+function isObjectInsideRoot(object, root) {
+  let cursor = object
+  while (cursor) {
+    if (cursor === root) return true
+    cursor = cursor.parent
+  }
+  return false
+}
+
 function createSpotColorMap(cfg) {
   const canvas = document.createElement('canvas')
   canvas.width = cfg.size
@@ -267,8 +360,9 @@ export default function VolumetricLightingSection() {
       const placement = S.placement || { random: false }
       const physics = S.physics || { enabled: false }
       const placedPositions = []
-      const spinnables = S.spinnables.map((cfg) => {
-        const mesh = createSpinnableMesh(cfg)
+      const spinnables = []
+      for (const cfg of S.spinnables) {
+        const mesh = await createSpinnableObject(cfg)
 
         let x = cfg.position[0]
         let y = cfg.position[1]
@@ -333,9 +427,9 @@ export default function VolumetricLightingSection() {
 
         scene.add(mesh)
 
-        mesh.geometry.computeBoundingSphere()
-        const baseRadius = mesh.geometry.boundingSphere?.radius ?? 0.5
-        const radius = baseRadius * mesh.scale.x
+        const bounds = new THREE.Box3().setFromObject(mesh)
+        const size = bounds.getSize(new THREE.Vector3())
+        const radius = Math.max(0.1, size.length() * 0.5)
 
         const linearVelocity = new THREE.Vector3()
         if (physics.enabled) {
@@ -354,7 +448,7 @@ export default function VolumetricLightingSection() {
           linearVelocity.copy(dir).multiplyScalar(speed)
         }
 
-        return {
+        spinnables.push({
           cfg,
           mesh,
           radius,
@@ -367,8 +461,8 @@ export default function VolumetricLightingSection() {
           targetVelocityZ: 0,
           pendingDX: 0,
           pendingDY: 0,
-        }
-      })
+        })
+      }
 
       const fl = S.floor
       const floor = new THREE.Mesh(
@@ -463,9 +557,9 @@ export default function VolumetricLightingSection() {
         ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
         raycaster.setFromCamera(ndc, camera)
         const meshes = spinnables.map((s) => s.mesh)
-        const hit = raycaster.intersectObjects(meshes, false)[0]
+        const hit = raycaster.intersectObjects(meshes, true)[0]
         if (!hit) return null
-        return spinnables.find((s) => s.mesh === hit.object) || null
+        return spinnables.find((s) => isObjectInsideRoot(hit.object, s.mesh)) || null
       }
 
       const onPointerDown = (event) => {

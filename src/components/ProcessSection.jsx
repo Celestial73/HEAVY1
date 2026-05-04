@@ -1,9 +1,66 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three/webgpu'
+import {
+  Fn,
+  mix,
+  mul,
+  pass,
+  screenCoordinate,
+  screenUV,
+  texture3D,
+  time,
+  uniform,
+  vec3,
+  add,
+} from 'three/tsl'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'
+import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
+import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
 import { PROCESS_SECTION_SETTINGS as defaults } from '../config/processSectionSettings.js'
+
+function createTexture3D(cfg) {
+  const {
+    size,
+    perlinScale,
+    repeatFactor,
+    format,
+    minFilter,
+    magFilter,
+    wrapS,
+    wrapT,
+    unpackAlignment,
+  } = cfg
+
+  let i = 0
+  const data = new Uint8Array(size * size * size)
+  const perlin = new ImprovedNoise()
+
+  for (let z = 0; z < size; z += 1) {
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const nx = (x / size) * repeatFactor
+        const ny = (y / size) * repeatFactor
+        const nz = (z / size) * repeatFactor
+        const noiseValue = perlin.noise(nx * perlinScale, ny * perlinScale, nz * perlinScale)
+        data[i] = 128 + 128 * noiseValue
+        i += 1
+      }
+    }
+  }
+
+  const texture = new THREE.Data3DTexture(data, size, size, size)
+  texture.format = format
+  texture.minFilter = minFilter
+  texture.magFilter = magFilter
+  texture.wrapS = wrapS
+  texture.wrapT = wrapT
+  texture.unpackAlignment = unpackAlignment
+  texture.needsUpdate = true
+  return texture
+}
 
 function mergeMaterialOptions(defaultsObj, userObj = {}) {
   const out = { ...defaultsObj }
@@ -11,6 +68,70 @@ function mergeMaterialOptions(defaultsObj, userObj = {}) {
     if (v !== undefined) out[k] = v
   }
   return out
+}
+
+function mergeProcessLabel(defaultLabel, cubeLabel) {
+  const a = defaultLabel ?? {}
+  const b = cubeLabel ?? {}
+  return {
+    ...a,
+    ...b,
+    object3d: {
+      ...(a.object3d ?? {}),
+      ...(b.object3d ?? {}),
+    },
+  }
+}
+
+/** Семейства из CSS font stack (фрагменты в '…' или "…") — для `document.fonts.load`. */
+function extractQuotedFontFamilies(cssStack) {
+  if (!cssStack || typeof cssStack !== 'string') return []
+  const out = []
+  const re = /'([^']+)'|"([^"]+)"/g
+  let m
+  while ((m = re.exec(cssStack)) !== null) {
+    const name = (m[1] || m[2]).trim()
+    if (name) out.push(name)
+  }
+  return [...new Set(out)]
+}
+
+/**
+ * Canvas рисует до готовности @font-face → без `fonts.load` виден системный fallback.
+ */
+async function loadProcessLabelFonts(settings) {
+  if (typeof document === 'undefined' || !document.fonts?.load) return
+  try {
+    await document.fonts.ready
+  } catch (_) {
+    /* ignore */
+  }
+
+  const dl = settings.defaultLabel ?? {}
+  const families = new Set()
+  const addFrom = (stack) => {
+    for (const f of extractQuotedFontFamilies(stack)) families.add(f)
+  }
+  addFrom(dl.fontFamily)
+  addFrom(dl.subtitleFontFamily)
+
+  for (const cube of settings.cubes ?? []) {
+    const lb = cube.label ?? {}
+    if (lb.fontFamily != null) addFrom(lb.fontFamily)
+    if (lb.subtitleFontFamily != null) addFrom(lb.subtitleFontFamily)
+  }
+
+  const mainW = String(dl.fontWeight ?? '400').trim() || '400'
+  const subW = String(dl.subtitleFontWeight ?? dl.fontWeight ?? '400').trim() || '400'
+  const pxMain = 360
+  const pxSub = Math.round(pxMain * 0.42)
+
+  const loads = []
+  for (const fam of families) {
+    loads.push(document.fonts.load(`${mainW} ${pxMain}px '${fam}'`).catch(() => {}))
+    loads.push(document.fonts.load(`${subW} ${pxSub}px '${fam}'`).catch(() => {}))
+  }
+  await Promise.all(loads)
 }
 
 /** Размеры «плитки» (масштаб ×1.5 относительно базы 2×1.6×0.25). */
@@ -100,8 +221,193 @@ const COLLIDER_PADDING = 0.03
 const BOUNCE_RESTITUTION = 0.15
 const BOUNCE_TANGENT_FRICTION = 0.9
 
-/** Группа: корпус плашки + лицевая рамка по периметру (выступ по +Z к камере). */
-function buildPlateWithBezel(plateMat) {
+function measureLineHeight(ctx, text, fontPx, weight, family) {
+  ctx.font = `${weight} ${fontPx}px ${family}`
+  const m = ctx.measureText(text)
+  const asc = m.actualBoundingBoxAscent ?? fontPx * 0.72
+  const desc = m.actualBoundingBoxDescent ?? fontPx * 0.28
+  return asc + desc
+}
+
+/**
+ * Плоский текст на лицевой стороне: canvas → CanvasTexture на PlaneGeometry.
+ * Опционально вторая строка `subtitle` — меньший кегль; шрифт задаётся отдельно:
+ * `subtitleFontFamily`, `subtitleFontWeight`, `subtitleFontSizePx` / `subtitleSizeRatio`.
+ */
+function createFlatLabelPlane(plateMat, mergedLabel) {
+  const textStr = mergedLabel?.text != null ? String(mergedLabel.text).trim() : ''
+  if (mergedLabel?.enabled === false || textStr.length === 0) return null
+
+  const innerW = CUBE_WIDTH - 2 * FRAME_RAIL
+  const innerH = Math.max(0.02, CUBE_HEIGHT - 2 * FRAME_RAIL)
+  const planeScale = mergedLabel.planeScale ?? 0.92
+  const planeW = innerW * planeScale
+  const planeH = innerH * planeScale
+
+  const fontFamily = mergedLabel.fontFamily ?? 'system-ui, sans-serif'
+  const fontWeight = mergedLabel.fontWeight ?? '600'
+  let fontSizePx = mergedLabel.fontSizePx ?? 160
+
+  const subStrRaw = mergedLabel.subtitle != null ? String(mergedLabel.subtitle).trim() : ''
+  const subFamily = mergedLabel.subtitleFontFamily ?? fontFamily
+  const subWeight = mergedLabel.subtitleFontWeight ?? fontWeight
+
+  const pixelsPerUnit = mergedLabel.pixelsPerUnit ?? 180
+  const maxCanvasSide = mergedLabel.maxCanvasSide ?? 2048
+  const cw = Math.min(
+    maxCanvasSide,
+    Math.max(256, Math.round(planeW * pixelsPerUnit)),
+  )
+  const ch = Math.max(64, Math.round(cw * (planeH / planeW)))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = cw
+  canvas.height = ch
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.clearRect(0, 0, cw, ch)
+
+  const colorNum = mergedLabel.color !== undefined ? mergedLabel.color : 0x121418
+  const hex = `#${(colorNum >>> 0).toString(16).padStart(6, '0')}`
+  const subColorNum =
+    mergedLabel.subtitleColor !== undefined ? mergedLabel.subtitleColor : colorNum
+  const subHex = `#${(subColorNum >>> 0).toString(16).padStart(6, '0')}`
+
+  const setMainFont = (px) => {
+    ctx.font = `${fontWeight} ${px}px ${fontFamily}`
+  }
+  const setSubFont = (px) => {
+    ctx.font = `${subWeight} ${px}px ${subFamily}`
+  }
+
+  setMainFont(fontSizePx)
+  while (ctx.measureText(textStr).width > cw * 0.92 && fontSizePx > 12) {
+    fontSizePx -= 3
+    setMainFont(fontSizePx)
+  }
+
+  let subFontSizePx = 12
+  if (subStrRaw) {
+    subFontSizePx =
+      mergedLabel.subtitleFontSizePx ??
+      Math.round(fontSizePx * (mergedLabel.subtitleSizeRatio ?? 0.38))
+  }
+
+  let mainH = measureLineHeight(ctx, textStr, fontSizePx, fontWeight, fontFamily)
+  let subH = 0
+  if (subStrRaw) {
+    setSubFont(subFontSizePx)
+    while (ctx.measureText(subStrRaw).width > cw * 0.92 && subFontSizePx > 10) {
+      subFontSizePx -= 2
+      setSubFont(subFontSizePx)
+    }
+    subH = measureLineHeight(ctx, subStrRaw, subFontSizePx, subWeight, subFamily)
+  }
+
+  const gap = mergedLabel.subtitleGapPx ?? 12
+  const blockCenterY = ch * (mergedLabel.textBlockAnchorY ?? (subStrRaw ? 0.36 : 0.5))
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  if (!subStrRaw) {
+    ctx.fillStyle = hex
+    setMainFont(fontSizePx)
+    ctx.fillText(textStr, cw / 2, blockCenterY)
+  } else {
+    const totalH = mainH + gap + subH
+    const mainY = blockCenterY - totalH / 2 + mainH / 2
+    const subY = mainY + mainH / 2 + gap + subH / 2
+    ctx.fillStyle = hex
+    setMainFont(fontSizePx)
+    ctx.fillText(textStr, cw / 2, mainY)
+    ctx.fillStyle = subHex
+    setSubFont(subFontSizePx)
+    ctx.fillText(subStrRaw, cw / 2, subY)
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+
+  const geom = new THREE.PlaneGeometry(planeW, planeH)
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false,
+    metalness: 0.2,
+    roughness: 0.55,
+    envMapIntensity: Math.min(1.5, (plateMat.envMapIntensity ?? 0.5) * 0.9),
+    side: THREE.FrontSide,
+  })
+
+  const mesh = new THREE.Mesh(geom, mat)
+  mesh.renderOrder = 1
+  mesh.position.z = CUBE_DEPTH * 0.5 + (mergedLabel.zOffset ?? 0.002)
+  return mesh
+}
+
+/**
+ * Примитив на лицевой стороне (ниже текста; позиция в локали плашки).
+ * Для `gltfUrl` меш подгружается отдельно (см. useEffect), здесь не создаётся.
+ */
+function createPlateObject3d(plateMat, mergedLabel) {
+  const od = mergedLabel.object3d
+  if (!od || od.enabled === false || od.gltfUrl) return null
+
+  const primitive = od.primitive ?? 'sphere'
+  const size = od.size ?? 0.44
+  let geom
+  switch (primitive) {
+    case 'box':
+      geom = new THREE.BoxGeometry(size, size, size * 0.75)
+      break
+    case 'torusKnot':
+      geom = new THREE.TorusKnotGeometry(size * 0.32, size * 0.11, 48, 12)
+      break
+    case 'icosahedron':
+      geom = new THREE.IcosahedronGeometry(size * 0.5, 0)
+      break
+    case 'cone':
+      geom = new THREE.ConeGeometry(size * 0.45, size * 0.88, 32)
+      break
+    case 'cylinder':
+      geom = new THREE.CylinderGeometry(size * 0.4, size * 0.4, size * 0.85, 32)
+      break
+    case 'torus':
+      geom = new THREE.TorusGeometry(size * 0.38, size * 0.1, 24, 32)
+      break
+    case 'sphere':
+    default:
+      geom = new THREE.SphereGeometry(size * 0.5, 32, 24)
+  }
+
+  const mat = plateMat.clone()
+  mat.map = null
+  mat.normalMap = null
+  mat.roughnessMap = null
+  mat.metalnessMap = null
+  mat.normalScale = new THREE.Vector2(1, 1)
+  if (od.color !== undefined) {
+    mat.color.setHex(od.color)
+  } else {
+    mat.color.multiplyScalar(1.04)
+  }
+  mat.metalness = od.metalness ?? 0.85
+  mat.roughness = od.roughness ?? 0.4
+  const mesh = new THREE.Mesh(geom, mat)
+  const p = od.position ?? [0, -0.78, CUBE_DEPTH * 0.5 + 0.028]
+  const r = od.rotation ?? [0, 0, 0]
+  mesh.position.set(p[0], p[1], p[2])
+  mesh.rotation.set(r[0], r[1], r[2])
+  mesh.renderOrder = 2
+  return mesh
+}
+
+/** Группа: корпус плашки + лицевая рамка + опционально плоский текст (canvas). */
+function buildPlateWithBezel(plateMat, mergedLabel) {
   const tile = new THREE.Group()
   tile.userData.isProcessTileRoot = true
 
@@ -172,6 +478,11 @@ function buildPlateWithBezel(plateMat) {
     tile.add(rail)
   }
 
+  const labelMesh = createFlatLabelPlane(plateMat, mergedLabel)
+  if (labelMesh) tile.add(labelMesh)
+  const deco3d = createPlateObject3d(plateMat, mergedLabel)
+  if (deco3d) tile.add(deco3d)
+
   return tile
 }
 
@@ -190,11 +501,34 @@ function disposeTileResources(tile) {
   tile.traverse((ch) => {
     if (!ch.isMesh) return
     ch.geometry?.dispose()
+    ch.material?.map?.dispose()
     const m = ch.material
     if (Array.isArray(m)) m.forEach((mm) => materials.add(mm))
     else if (m) materials.add(m)
   })
   materials.forEach((m) => m.dispose())
+}
+
+/** Только зазоры между плашками: нижнее переднее ребро верхней → верхнее переднее ребро нижней (без линий по поверхности). */
+function fillChainGapSegments(cubes, positions, chainTop, chainBot) {
+  const hh = CUBE_HEIGHT * 0.5
+  const fz = CUBE_DEPTH * 0.5
+  const n = cubes.length
+  for (let i = 0; i < n - 1; i += 1) {
+    const upper = cubes[i]
+    const lower = cubes[i + 1]
+    upper.updateMatrixWorld(true)
+    lower.updateMatrixWorld(true)
+    chainBot.set(0, -hh, fz).applyMatrix4(upper.matrixWorld)
+    chainTop.set(0, hh, fz).applyMatrix4(lower.matrixWorld)
+    const o = i * 6
+    positions[o] = chainBot.x
+    positions[o + 1] = chainBot.y
+    positions[o + 2] = chainBot.z
+    positions[o + 3] = chainTop.x
+    positions[o + 4] = chainTop.y
+    positions[o + 5] = chainTop.z
+  }
 }
 
 export default function ProcessSection() {
@@ -221,30 +555,42 @@ export default function ProcessSection() {
     let resizeObserver = null
     let cancelled = false
     let environmentTarget = null
+    let renderPipeline = null
+    let noiseTexture3D = null
+    let volumetricMesh = null
+    let volumetricSpot = null
 
-    const scene = new THREE.Scene()
-    scene.background = null
-
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100)
-    camera.position.set(0, 0, 21)
-    camera.lookAt(0, 0, 0)
-
-    // Освещение: мягкая заливка + ключ + холодная подсветка сзади.
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35))
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.4)
-    keyLight.position.set(5, 6, 8)
-    scene.add(keyLight)
-    const rimLight = new THREE.DirectionalLight(0x88aaff, 0.6)
-    rimLight.position.set(-5, -3, -6)
-    scene.add(rimLight)
-
-    // Кубики: вертикальная колонка по Y. Каждый — отдельный физический объект
-    // с собственным velocity. Z = 0, drag живёт в плоскости z=0.
+    let scene = null
+    let camera = null
     const cubes = []
-    const stride = CUBE_HEIGHT + CUBE_GAP
-    const totalHeight = (cubeCount - 1) * stride
-    const topY = totalHeight / 2
-    for (let i = 0; i < cubeCount; i += 1) {
+    const chainTop = new THREE.Vector3()
+    const chainBot = new THREE.Vector3()
+    let chainGeom = null
+    let chainMat = null
+    let chainLine = null
+    let chainPositions = null
+    let onResize = () => {}
+
+    void (async () => {
+      await loadProcessLabelFonts(settings)
+      if (cancelled) return
+
+      const volSettings = settings.volumetric ?? defaults.volumetric
+
+      scene = new THREE.Scene()
+      scene.background = null
+
+      camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100)
+      camera.position.set(0, 0, 21)
+      camera.lookAt(0, 0, 0)
+
+      // Свет только из IBL (scene.environment ниже, после PMREM).
+      // Кубики: вертикальная колонка по Y. Каждый — отдельный физический объект
+      // с собственным velocity. Z = 0, drag живёт в плоскости z=0.
+      const stride = CUBE_HEIGHT + CUBE_GAP
+      const totalHeight = (cubeCount - 1) * stride
+      const topY = totalHeight / 2
+      for (let i = 0; i < cubeCount; i += 1) {
       const spec = cubeSpecs[i] ?? {}
       const matOpts = mergeMaterialOptions(settings.defaultMaterial, spec.material ?? {})
 
@@ -277,7 +623,8 @@ export default function ProcessSection() {
       }
 
       const mat = new THREE.MeshStandardMaterial(matOpts)
-      const tile = buildPlateWithBezel(mat)
+      const mergedLabel = mergeProcessLabel(settings.defaultLabel, spec.label)
+      const tile = buildPlateWithBezel(mat, mergedLabel)
       tile.userData.proceduralDispose = proceduralDispose
       tile.position.set(0, topY - i * stride, 0)
       tile.userData.velocity = new THREE.Vector3(0, 0, 0)
@@ -298,28 +645,64 @@ export default function ProcessSection() {
       cubes.push(tile)
     }
 
-    // Визуальная цепь: ломаная линия через центры кубиков. Пунктир делает её
-    // похожей на сегментированную цепь, не углубляясь в честную геометрию звеньев.
-    const chainGeom = new THREE.BufferGeometry()
-    const chainPositions = new Float32Array(cubes.length * 3)
-    for (let i = 0; i < cubes.length; i += 1) {
-      chainPositions[i * 3] = cubes[i].position.x
-      chainPositions[i * 3 + 1] = cubes[i].position.y
-      chainPositions[i * 3 + 2] = cubes[i].position.z
-    }
-    chainGeom.setAttribute('position', new THREE.BufferAttribute(chainPositions, 3))
-    const chainMat = new THREE.LineDashedMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.55,
-      dashSize: 0.27,
-      gapSize: 0.18,
-    })
-    const chainLine = new THREE.Line(chainGeom, chainMat)
-    chainLine.computeLineDistances()
-    scene.add(chainLine)
+    void (async () => {
+      const byUrl = new Map()
+      for (let i = 0; i < cubeCount; i += 1) {
+        const od = mergeProcessLabel(settings.defaultLabel, cubeSpecs[i]?.label ?? {}).object3d
+        const url = od?.gltfUrl
+        if (!url || od.enabled === false) continue
+        if (!byUrl.has(url)) byUrl.set(url, [])
+        byUrl.get(url).push({ index: i, od })
+      }
+      if (byUrl.size === 0) return undefined
+      try {
+        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
+        const loader = new GLTFLoader()
+        for (const [url, items] of byUrl) {
+          if (cancelled) return undefined
+          const gltf = await loader.loadAsync(url)
+          for (const { index, od } of items) {
+            if (cancelled) return undefined
+            const root = gltf.scene.clone(true)
+            const s = od.gltfScale ?? 1
+            root.scale.setScalar(s)
+            const p = od.position ?? [0, -0.78, CUBE_DEPTH * 0.5 + 0.028]
+            const r = od.rotation ?? [0, 0, 0]
+            root.position.set(p[0], p[1], p[2])
+            root.rotation.set(r[0], r[1], r[2])
+            root.traverse((o) => {
+              if (o.isMesh) o.renderOrder = 2
+            })
+            cubes[index].add(root)
+          }
+        }
+      } catch (e) {
+        console.warn('ProcessSection: label.object3d gltf failed', e)
+      }
+      return undefined
+    })()
 
-    const onResize = () => {
+    const chainGapCount = Math.max(0, cubes.length - 1)
+
+    chainPositions = chainGapCount > 0 ? new Float32Array(chainGapCount * 6) : null
+
+    if (chainGapCount > 0 && chainPositions) {
+      fillChainGapSegments(cubes, chainPositions, chainTop, chainBot)
+      chainGeom = new THREE.BufferGeometry()
+      chainGeom.setAttribute('position', new THREE.BufferAttribute(chainPositions, 3))
+      chainMat = new THREE.LineDashedMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.55,
+        dashSize: 0.27,
+        gapSize: 0.18,
+      })
+      chainLine = new THREE.LineSegments(chainGeom, chainMat)
+      chainLine.computeLineDistances()
+      scene.add(chainLine)
+    }
+
+    onResize = () => {
       if (!renderer) return
       const w = container.clientWidth
       const h = container.clientHeight
@@ -358,6 +741,84 @@ export default function ProcessSection() {
       scene.environment = environmentTarget.texture
       scene.environmentIntensity = environmentIntensity
       pmremGenerator.dispose()
+
+      const V = volSettings
+      if (V && V.enabled !== false) {
+        renderer.toneMapping = THREE.NeutralToneMapping
+        renderer.toneMappingExposure = V.rendererToneMapping?.toneMappingExposure ?? 1.35
+
+        noiseTexture3D = createTexture3D(V.noiseTexture3D)
+        const smokeAmount = uniform(V.volume.smokeAmount)
+        const ts = V.volume.timeScroll
+
+        const volumetricMaterial = new THREE.VolumeNodeMaterial()
+        volumetricMaterial.steps = V.volume.rayMarchSteps
+        volumetricMaterial.offsetNode = bayer16(screenCoordinate)
+        volumetricMaterial.scatteringNode = Fn(({ positionRay }) => {
+          const timeScaled = vec3(time.mul(ts.x), ts.y, time.mul(ts.z))
+          const samples = V.volume.grainSamples
+          const sampleGrain = (scale, timeScale = 1) =>
+            texture3D(
+              noiseTexture3D,
+              positionRay.add(timeScaled.mul(timeScale)).mul(scale).mod(1),
+              0,
+            ).r.add(0.5)
+
+          let density = sampleGrain(samples[0].scale, samples[0].timeScale)
+          for (let g = 1; g < samples.length; g += 1) {
+            density = density.mul(sampleGrain(samples[g].scale, samples[g].timeScale))
+          }
+          return mix(1, density, smokeAmount)
+        })
+
+        const box = V.volumetricBox
+        volumetricMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(box.width, box.height, box.depth),
+          volumetricMaterial,
+        )
+        volumetricMesh.receiveShadow = box.receiveShadow ?? false
+        volumetricMesh.position.y = box.positionY ?? 0
+        volumetricMesh.layers.disableAll()
+        volumetricMesh.layers.enable(V.layerIndex)
+        scene.add(volumetricMesh)
+
+        const sl = V.spotLight
+        volumetricSpot = new THREE.SpotLight(sl.color, sl.intensity)
+        volumetricSpot.position.set(...sl.position)
+        volumetricSpot.angle = sl.angle
+        volumetricSpot.penumbra = sl.penumbra
+        volumetricSpot.decay = sl.decay
+        volumetricSpot.distance = sl.distance
+        volumetricSpot.castShadow = sl.castShadow ?? false
+        volumetricSpot.layers.disableAll()
+        volumetricSpot.layers.enable(V.layerIndex)
+        volumetricSpot.target.position.set(...sl.target)
+        scene.add(volumetricSpot)
+        scene.add(volumetricSpot.target)
+
+        renderPipeline = new THREE.RenderPipeline(renderer)
+        const volumetricLightingIntensity = uniform(V.postProcessing.volumetricLightingIntensity)
+        const volumetricLayer = new THREE.Layers()
+        volumetricLayer.disableAll()
+        volumetricLayer.enable(V.layerIndex)
+
+        const scenePass = pass(scene, camera)
+        const sceneDepth = scenePass.getTextureNode('depth')
+        volumetricMaterial.depthNode = sceneDepth.sample(screenUV)
+
+        const pp = V.postProcessing
+        const volumetricPass = pass(scene, camera, { depthBuffer: pp.volumetricPassDepthBuffer })
+        volumetricPass.name = pp.volumetricPassName
+        volumetricPass.setLayers(volumetricLayer)
+        volumetricPass.setResolutionScale(pp.volumetricResolutionScale)
+
+        const denoiseStrength = uniform(pp.denoiseStrength)
+        const blurredVolumetricPass = gaussianBlur(volumetricPass, denoiseStrength)
+        renderPipeline.outputNode = add(
+          scenePass,
+          mul(blurredVolumetricPass, volumetricLightingIntensity),
+        )
+      }
 
       container.appendChild(renderer.domElement)
       renderer.domElement.style.touchAction = 'none'
@@ -661,22 +1122,42 @@ export default function ProcessSection() {
           cube.rotation.z = MAX_WOBBLE_TILT_RAD * Math.sin(now * w.speedZ + w.phaseZ)
         }
 
-        // 8) Обновляем геометрию визуальной цепи и пересчитываем lineDistances
-        //    (нужно для пунктира — без этого штрихи «съезжают» при движении).
-        for (let i = 0; i < cubes.length; i += 1) {
-          chainPositions[i * 3] = cubes[i].position.x
-          chainPositions[i * 3 + 1] = cubes[i].position.y
-          chainPositions[i * 3 + 2] = cubes[i].position.z
+        // 8) Цепь: только отрезки в зазорах (лицевая сторона), без вертикали по центру плашки.
+        if (chainGeom && chainPositions && chainGapCount > 0) {
+          fillChainGapSegments(cubes, chainPositions, chainTop, chainBot)
+          chainGeom.attributes.position.needsUpdate = true
+          chainLine.computeLineDistances()
         }
-        chainGeom.attributes.position.needsUpdate = true
-        chainLine.computeLineDistances()
 
-        renderer.render(scene, camera)
+        if (volSettings?.enabled !== false && volumetricSpot && volSettings.spotOrbit) {
+          const o = volSettings.spotOrbit
+          const sl = volSettings.spotLight
+          if (o.speed !== 0) {
+            const t = clock.elapsedTime
+            volumetricSpot.position.set(
+              Math.cos(t * o.speed) * o.radius,
+              o.height,
+              Math.sin(t * o.speed) * o.radius,
+            )
+            volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
+          } else {
+            volumetricSpot.position.set(...sl.position)
+            volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
+          }
+        }
+
+        if (renderPipeline) {
+          renderPipeline.render()
+        } else {
+          renderer.render(scene, camera)
+        }
       })
 
       resizeObserver = new ResizeObserver(onResize)
       resizeObserver.observe(container)
       window.addEventListener('resize', onResize)
+    })()
+
     })()
 
     return () => {
@@ -685,18 +1166,25 @@ export default function ProcessSection() {
       resizeObserver?.disconnect()
       if (renderer) {
         renderer.setAnimationLoop(null)
+        renderPipeline?.dispose()
+        noiseTexture3D?.dispose()
+        if (volumetricMesh) {
+          volumetricMesh.geometry?.dispose()
+          volumetricMesh.material?.dispose()
+        }
+        volumetricSpot?.dispose()
         if (renderer.domElement.parentNode === container) {
           container.removeChild(renderer.domElement)
         }
         renderer.dispose()
       }
-      scene.environment = null
+      if (scene) scene.environment = null
       environmentTarget?.dispose()
       for (const cube of cubes) {
         disposeTileResources(cube)
       }
-      chainGeom.dispose()
-      chainMat.dispose()
+      chainGeom?.dispose()
+      chainMat?.dispose()
     }
   }, [settings])
 

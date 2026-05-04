@@ -151,8 +151,9 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
    * Все интерактивные предметы сцены. По одному на пользовательский тычок.
    * Каждый предмет можно крутить независимо, на него нацелен raycast по нажатию.
    *
-   * type: 'teapot' | 'box' | 'sphere' | 'icosahedron' | 'torus' | 'torusKnot' | 'cone' | 'cylinder'
+   * type: 'teapot' | 'box' | 'sphere' | 'icosahedron' | 'torus' | 'torusKnot' | 'cone' | 'cylinder' | 'obj'
    * args: параметры конструктора геометрии (см. switch в createSpinnableMesh).
+   * Для `type: 'obj'`: используйте `objUrl`, опционально `mtlUrl`, `textureSet` и `objScale`.
    * material: опции MeshStandardMaterial (color, roughness, metalness, side: 'front'|'back'|'double').
    * sensitivity (опц.): { x, y, z } переопределяет interaction.dragSensitivity*.
    */
@@ -184,8 +185,16 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     },
     {
       id: 'torusKnot',
-      type: 'torusKnot',
-      args: { radius: 0.45, tube: 0.13, tubularSegments: 96, radialSegments: 12 },
+      type: 'obj',
+      objUrl: '/models/6_Pounder_Brass_Cannon.obj',
+      mtlUrl: '/models/6_Pounder_Brass_Cannon.mtl',
+      textureSet: {
+        enabled: true,
+        folder: '/models/6_Pounder_Brass_Textures',
+        prefix: '6_Pounder_Brass',
+        suffixes: ['BaseColor.png', 'Normal.png', 'Roughness.png', 'Metallic.png'],
+      },
+      objScale: 0.3,
       position: [-1, -2.4, -2.4],
       material: { color: 0xff64b7, roughness: 0.25, metalness: 0.4 },
       castShadow: true,

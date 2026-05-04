@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
 import * as THREE from 'three/webgpu'
 import {
   Fn,
@@ -19,7 +20,10 @@ import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'
 import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
-import { PROCESS_SECTION_SETTINGS as defaults } from '../config/processSectionSettings.js'
+import {
+  PROCESS_SECTION_SETTINGS as defaults,
+  PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
+} from '../config/processSectionSettings.js'
 
 function createTexture3D(cfg) {
   const {
@@ -134,20 +138,25 @@ async function loadProcessLabelFonts(settings) {
   await Promise.all(loads)
 }
 
-/** Размеры «плитки» (масштаб ×1.5 относительно базы 2×1.6×0.25). */
-const CUBE_WIDTH = 4.5
-const CUBE_HEIGHT = 3.3
-const CUBE_DEPTH = 0.375
+/**
+ * Линейный масштаб плашки (1 = база 4.5×3.3×0.375).
+ * `(2/3)*1.2` — на 1.2× крупнее, чем предыдущий пресет `2/3`.
+ * Цепь и коллайдеры считаются от итоговых CUBE_* / CUBE_GAP.
+ */
+const PLATE_SCALE = (2 / 3) * 1.2
+const CUBE_WIDTH = 4.5 * PLATE_SCALE
+const CUBE_HEIGHT = 3.3 * PLATE_SCALE
+const CUBE_DEPTH = 0.375 * PLATE_SCALE
 /** Полоса рамки (от края плашки к центру) и выступ вперёд (+Z, к камере). */
-const FRAME_RAIL = 0.15
-const FRAME_OUTSET = 0.075
+const FRAME_RAIL = 0.15 * PLATE_SCALE
+const FRAME_OUTSET = 0.075 * PLATE_SCALE
 /** Фаски RoundedBoxGeometry: радиус скругления рёбер (сегменты дуги). */
-const PLATE_BEVEL_RADIUS = 0.063
+const PLATE_BEVEL_RADIUS = 0.063 * PLATE_SCALE
 const PLATE_BEVEL_SEGMENTS = 2
-const FRAME_BEVEL_RADIUS = 0.021
+const FRAME_BEVEL_RADIUS = 0.021 * PLATE_SCALE
 const FRAME_BEVEL_SEGMENTS = 1
 /** Промежуток между соседними плитками (по Y, поверх их собственной высоты). */
-const CUBE_GAP = 1.35
+const CUBE_GAP = 1.35 * PLATE_SCALE
 
 /** Космос: сопротивления почти нет, но чтобы предметы не уезжали в бесконечность —
  *  лёгкое экспоненциальное затухание скорости (доля, остающаяся за секунду). */
@@ -166,6 +175,16 @@ const WOBBLE_TILT_DEG = 10
 const MAX_WOBBLE_TILT_RAD = (WOBBLE_TILT_DEG * Math.PI) / 180
 const WOBBLE_SPEED_MIN = 0.25
 const WOBBLE_SPEED_MAX = 0.6
+
+function applyPlateWobble(cubes, elapsedTime) {
+  for (const cube of cubes) {
+    const w = cube.userData.wobble
+    if (!w) continue
+    cube.rotation.x = MAX_WOBBLE_TILT_RAD * Math.sin(elapsedTime * w.speedX + w.phaseX)
+    cube.rotation.y = MAX_WOBBLE_TILT_RAD * Math.sin(elapsedTime * w.speedY + w.phaseY)
+    cube.rotation.z = MAX_WOBBLE_TILT_RAD * Math.sin(elapsedTime * w.speedZ + w.phaseZ)
+  }
+}
 
 /**
  * Инертный drag: кубик «догоняет» курсор пружиной, а не телепортируется.
@@ -186,14 +205,14 @@ const DRAG_DAMPING_RATIO = 1
  * Пока расстояние меньше — звено провисает, кубики двигаются независимо.
  * Когда натянулась — кубик-сосед подтягивается к тому, что мы тянем.
  *
- *  - CHAIN_LENGTH должна быть > начального расстояния между кубиками
- *    (CUBE_HEIGHT + CUBE_GAP) — сейчас ~3.75, запас в длине звена.
+ *  - CHAIN_LENGTH должна быть > шага колонны (CUBE_HEIGHT + CUBE_GAP), с запасом.
  *  - CONSTRAINT_ITERATIONS — сколько раз за кадр прогоняем все звенья и
  *    столкновения. Больше итераций = стабильнее распространение через
  *    несколько звеньев и устойчивее разрешение коллизий стопками. 8
  *    хватает для 4 кубиков.
  */
-const CHAIN_LENGTH = 4.5
+const COMBAT_STRIDE = CUBE_HEIGHT + CUBE_GAP
+const CHAIN_LENGTH = COMBAT_STRIDE * 1.22
 const CONSTRAINT_ITERATIONS = 8
 
 /**
@@ -205,7 +224,7 @@ const CONSTRAINT_ITERATIONS = 8
  *  - COLLIDER_PADDING — дополнительный зазор между плитками сверх их
  *    геометрии. 0 = соприкасаются плотно, >0 — небольшой воздушный зазор.
  */
-const COLLIDER_PADDING = 0.03
+const COLLIDER_PADDING = 0.03 * PLATE_SCALE
 
 /**
  * Мягкая граница экрана. Кубик не улетает за края, но и не «прилипает»:
@@ -345,7 +364,7 @@ function createFlatLabelPlane(plateMat, mergedLabel) {
 
   const mesh = new THREE.Mesh(geom, mat)
   mesh.renderOrder = 1
-  mesh.position.z = CUBE_DEPTH * 0.5 + (mergedLabel.zOffset ?? 0.002)
+  mesh.position.z = CUBE_DEPTH * 0.5 + (mergedLabel.zOffset ?? 0.002 * PLATE_SCALE)
   return mesh
 }
 
@@ -358,7 +377,7 @@ function createPlateObject3d(plateMat, mergedLabel) {
   if (!od || od.enabled === false || od.gltfUrl) return null
 
   const primitive = od.primitive ?? 'sphere'
-  const size = od.size ?? 0.44
+  const size = od.size ?? 0.44 * PLATE_SCALE
   let geom
   switch (primitive) {
     case 'box':
@@ -398,7 +417,7 @@ function createPlateObject3d(plateMat, mergedLabel) {
   mat.metalness = od.metalness ?? 0.85
   mat.roughness = od.roughness ?? 0.4
   const mesh = new THREE.Mesh(geom, mat)
-  const p = od.position ?? [0, -0.78, CUBE_DEPTH * 0.5 + 0.028]
+  const p = od.position ?? [0, -0.78 * PLATE_SCALE, CUBE_DEPTH * 0.5 + 0.028 * PLATE_SCALE]
   const r = od.rotation ?? [0, 0, 0]
   mesh.position.set(p[0], p[1], p[2])
   mesh.rotation.set(r[0], r[1], r[2])
@@ -509,10 +528,13 @@ function disposeTileResources(tile) {
   materials.forEach((m) => m.dispose())
 }
 
+/** Смещение к камере (+local Z), чтобы нить не зарывалась в металл и не пропадала в depth. */
+const CHAIN_FACE_Z_OUTSET = 0.09 * PLATE_SCALE
+
 /** Только зазоры между плашками: нижнее переднее ребро верхней → верхнее переднее ребро нижней (без линий по поверхности). */
 function fillChainGapSegments(cubes, positions, chainTop, chainBot) {
   const hh = CUBE_HEIGHT * 0.5
-  const fz = CUBE_DEPTH * 0.5
+  const fz = CUBE_DEPTH * 0.5 + CHAIN_FACE_Z_OUTSET
   const n = cubes.length
   for (let i = 0; i < n - 1; i += 1) {
     const upper = cubes[i]
@@ -534,6 +556,7 @@ function fillChainGapSegments(cubes, positions, chainTop, chainBot) {
 export default function ProcessSection() {
   const containerRef = useRef(null)
   const [settings, setSettings] = useState(defaults)
+  const [sceneReady, setSceneReady] = useState(false)
 
   useEffect(() => {
     if (!import.meta.hot) return undefined
@@ -544,12 +567,20 @@ export default function ProcessSection() {
   }, [])
 
   useEffect(() => {
+    setSceneReady(false)
     const container = containerRef.current
     if (!container) return undefined
 
     const cubeSpecs = settings.cubes
     const cubeCount = cubeSpecs.length
     if (cubeCount < 1) return undefined
+
+    const introCfg = settings.introTrain ?? defaults.introTrain
+    /** `fly` | `chain-wait` | `done` — до `done` цепь в физике и линия нити выключены (после таймера). */
+    let introPhase = 'done'
+    let introElapsed = 0
+    let chainWaitElapsed = 0
+    let chainPhysicsEnabled = true
 
     let renderer = null
     let resizeObserver = null
@@ -587,100 +618,64 @@ export default function ProcessSection() {
       // Свет только из IBL (scene.environment ниже, после PMREM).
       // Кубики: вертикальная колонка по Y. Каждый — отдельный физический объект
       // с собственным velocity. Z = 0, drag живёт в плоскости z=0.
-      const stride = CUBE_HEIGHT + CUBE_GAP
-      const totalHeight = (cubeCount - 1) * stride
+      const totalHeight = (cubeCount - 1) * COMBAT_STRIDE
       const topY = totalHeight / 2
       for (let i = 0; i < cubeCount; i += 1) {
-      const spec = cubeSpecs[i] ?? {}
-      const matOpts = mergeMaterialOptions(settings.defaultMaterial, spec.material ?? {})
+        const spec = cubeSpecs[i] ?? {}
+        const matOpts = mergeMaterialOptions(settings.defaultMaterial, spec.material ?? {})
 
-      const globalProc = settings.procedural ?? {}
-      const cubeProc = spec.procedural
-      const procOn =
-        globalProc.enabled !== false && (cubeProc === undefined || cubeProc.enabled !== false)
-      let proceduralDispose = null
-      if (procOn) {
-        const presets = globalProc.presetsByIndex ?? [
-          'copper',
-          'lead',
-          'aluminum',
-          'bronze',
-        ]
-        const preset = (cubeProc && cubeProc.preset) ?? presets[i % presets.length] ?? 'copper'
-        const seed = (cubeProc && typeof cubeProc.seed === 'number'
-          ? cubeProc.seed
-          : i * 7919 + 1337)
-        const uv = globalProc.uvRepeat ?? [3.5, 3.5]
-        const uvU = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[0]) ?? uv[0]
-        const uvV = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[1]) ?? uv[1]
-        const maps = createMetalProceduralMaps(preset, seed, {
-          uvRepeatU: uvU,
-          uvRepeatV: uvV,
-        })
-        Object.assign(matOpts, maps.textures)
-        matOpts.normalScale = maps.normalScale
-        proceduralDispose = maps.dispose
-      }
-
-      const mat = new THREE.MeshStandardMaterial(matOpts)
-      const mergedLabel = mergeProcessLabel(settings.defaultLabel, spec.label)
-      const tile = buildPlateWithBezel(mat, mergedLabel)
-      tile.userData.proceduralDispose = proceduralDispose
-      tile.position.set(0, topY - i * stride, 0)
-      tile.userData.velocity = new THREE.Vector3(0, 0, 0)
-      // Уникальные параметры покачивания: фазы — случайные [0, 2π],
-      // скорости — случайные в диапазоне [WOBBLE_SPEED_MIN, WOBBLE_SPEED_MAX].
-      const TAU = Math.PI * 2
-      const randSpeed = () =>
-        WOBBLE_SPEED_MIN + Math.random() * (WOBBLE_SPEED_MAX - WOBBLE_SPEED_MIN)
-      tile.userData.wobble = {
-        phaseX: Math.random() * TAU,
-        phaseY: Math.random() * TAU,
-        phaseZ: Math.random() * TAU,
-        speedX: randSpeed(),
-        speedY: randSpeed(),
-        speedZ: randSpeed(),
-      }
-      scene.add(tile)
-      cubes.push(tile)
-    }
-
-    void (async () => {
-      const byUrl = new Map()
-      for (let i = 0; i < cubeCount; i += 1) {
-        const od = mergeProcessLabel(settings.defaultLabel, cubeSpecs[i]?.label ?? {}).object3d
-        const url = od?.gltfUrl
-        if (!url || od.enabled === false) continue
-        if (!byUrl.has(url)) byUrl.set(url, [])
-        byUrl.get(url).push({ index: i, od })
-      }
-      if (byUrl.size === 0) return undefined
-      try {
-        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
-        const loader = new GLTFLoader()
-        for (const [url, items] of byUrl) {
-          if (cancelled) return undefined
-          const gltf = await loader.loadAsync(url)
-          for (const { index, od } of items) {
-            if (cancelled) return undefined
-            const root = gltf.scene.clone(true)
-            const s = od.gltfScale ?? 1
-            root.scale.setScalar(s)
-            const p = od.position ?? [0, -0.78, CUBE_DEPTH * 0.5 + 0.028]
-            const r = od.rotation ?? [0, 0, 0]
-            root.position.set(p[0], p[1], p[2])
-            root.rotation.set(r[0], r[1], r[2])
-            root.traverse((o) => {
-              if (o.isMesh) o.renderOrder = 2
-            })
-            cubes[index].add(root)
-          }
+        const globalProc = settings.procedural ?? {}
+        const cubeProc = spec.procedural
+        const procOn =
+          globalProc.enabled !== false && (cubeProc === undefined || cubeProc.enabled !== false)
+        let proceduralDispose = null
+        if (procOn) {
+          const presets = globalProc.presetsByIndex ?? [
+            'copper',
+            'lead',
+            'aluminum',
+            'bronze',
+          ]
+          const preset = (cubeProc && cubeProc.preset) ?? presets[i % presets.length] ?? 'copper'
+          const seed = (cubeProc && typeof cubeProc.seed === 'number'
+            ? cubeProc.seed
+            : i * 7919 + 1337)
+          const uv = globalProc.uvRepeat ?? [3.5, 3.5]
+          const uvU = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[0]) ?? uv[0]
+          const uvV = (cubeProc && cubeProc.uvRepeat && cubeProc.uvRepeat[1]) ?? uv[1]
+          const maps = createMetalProceduralMaps(preset, seed, {
+            uvRepeatU: uvU,
+            uvRepeatV: uvV,
+          })
+          Object.assign(matOpts, maps.textures)
+          matOpts.normalScale = maps.normalScale
+          proceduralDispose = maps.dispose
         }
-      } catch (e) {
-        console.warn('ProcessSection: label.object3d gltf failed', e)
+
+        const mat = new THREE.MeshStandardMaterial(matOpts)
+        const mergedLabel = mergeProcessLabel(settings.defaultLabel, spec.label)
+        const tile = buildPlateWithBezel(mat, mergedLabel)
+        tile.userData.proceduralDispose = proceduralDispose
+        const restY = topY - i * COMBAT_STRIDE
+        tile.userData.restY = restY
+        tile.position.set(0, restY, 0)
+        tile.userData.velocity = new THREE.Vector3(0, 0, 0)
+        // Уникальные параметры покачивания: фазы — случайные [0, 2π],
+        // скорости — случайные в диапазоне [WOBBLE_SPEED_MIN, WOBBLE_SPEED_MAX].
+        const TAU = Math.PI * 2
+        const randSpeed = () =>
+          WOBBLE_SPEED_MIN + Math.random() * (WOBBLE_SPEED_MAX - WOBBLE_SPEED_MIN)
+        tile.userData.wobble = {
+          phaseX: Math.random() * TAU,
+          phaseY: Math.random() * TAU,
+          phaseZ: Math.random() * TAU,
+          speedX: randSpeed(),
+          speedY: randSpeed(),
+          speedZ: randSpeed(),
+        }
+        scene.add(tile)
+        cubes.push(tile)
       }
-      return undefined
-    })()
 
     const chainGapCount = Math.max(0, cubes.length - 1)
 
@@ -690,15 +685,18 @@ export default function ProcessSection() {
       fillChainGapSegments(cubes, chainPositions, chainTop, chainBot)
       chainGeom = new THREE.BufferGeometry()
       chainGeom.setAttribute('position', new THREE.BufferAttribute(chainPositions, 3))
-      chainMat = new THREE.LineDashedMaterial({
-        color: 0xffffff,
+      chainMat = new THREE.LineBasicMaterial({
+        color: 0xf2f6fc,
         transparent: true,
-        opacity: 0.55,
-        dashSize: 0.27,
-        gapSize: 0.18,
+        opacity: 0.92,
+        depthWrite: false,
+        depthTest: true,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       })
       chainLine = new THREE.LineSegments(chainGeom, chainMat)
-      chainLine.computeLineDistances()
+      chainLine.renderOrder = 6
       scene.add(chainLine)
     }
 
@@ -730,6 +728,88 @@ export default function ProcessSection() {
         return
       }
       if (cancelled) return
+
+      const halfFovTanFrame = Math.tan(camera.fov * 0.5 * (Math.PI / 180))
+      const halfCubeHFrame = CUBE_HEIGHT / 2
+      const viewHFrame = 2 * Math.abs(camera.position.z) * halfFovTanFrame
+      const minYFrame = -viewHFrame / 2 + halfCubeHFrame
+      const bottomEdgeY = minYFrame - halfCubeHFrame
+      const margin = introCfg?.startBelowMargin ?? 1.2
+
+      if (introCfg?.enabled !== false && cubeCount > 0) {
+        const flyOrder = introCfg?.flyOrder === 'bottom-first' ? 'bottom-first' : 'top-first'
+        const order =
+          flyOrder === 'bottom-first'
+            ? [...Array(cubeCount).keys()].reverse()
+            : [...Array(cubeCount).keys()]
+        const stackTopY = cubes[0].userData.restY + halfCubeHFrame
+        const drop = bottomEdgeY - margin - stackTopY
+        for (const cube of cubes) {
+          cube.position.y = cube.userData.restY + drop
+          cube.position.x = 0
+          cube.position.z = 0
+          cube.userData.velocity.set(0, 0, 0)
+        }
+        const dIntro = defaults.introTrain ?? {}
+        const blank = introCfg?.introBlankSeconds ?? dIntro.introBlankSeconds ?? 0.18
+        const stagger = Math.max(0, introCfg?.staggerBetweenPlatesSec ?? dIntro.staggerBetweenPlatesSec ?? 0.4)
+        const plateDur = Math.max(0.12, introCfg?.plateFlyDurationSec ?? dIntro.plateFlyDurationSec ?? 1.1)
+        for (let seq = 0; seq < order.length; seq += 1) {
+          const i = order[seq]
+          const cube = cubes[i]
+          const t0 = blank + seq * stagger
+          const t1 = t0 + plateDur
+          cube.userData.introFlyT0 = t0
+          cube.userData.introFlyT1 = t1
+          cube.userData.introFlyStartY = cube.position.y
+        }
+        introElapsed = 0
+        chainWaitElapsed = 0
+        introPhase = 'fly'
+        chainPhysicsEnabled = false
+        if (chainLine) chainLine.visible = false
+      } else {
+        introPhase = 'done'
+        chainPhysicsEnabled = true
+        if (chainLine) chainLine.visible = true
+      }
+
+      void (async () => {
+        const byUrl = new Map()
+        for (let i = 0; i < cubeCount; i += 1) {
+          const od = mergeProcessLabel(settings.defaultLabel, cubeSpecs[i]?.label ?? {}).object3d
+          const url = od?.gltfUrl
+          if (!url || od.enabled === false) continue
+          if (!byUrl.has(url)) byUrl.set(url, [])
+          byUrl.get(url).push({ index: i, od })
+        }
+        if (byUrl.size === 0) return undefined
+        try {
+          const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
+          const loader = new GLTFLoader()
+          for (const [url, items] of byUrl) {
+            if (cancelled) return undefined
+            const gltf = await loader.loadAsync(url)
+            for (const { index, od } of items) {
+              if (cancelled) return undefined
+              const root = gltf.scene.clone(true)
+              const s = od.gltfScale ?? 1
+              root.scale.setScalar(s)
+              const p = od.position ?? [0, -0.78 * PLATE_SCALE, CUBE_DEPTH * 0.5 + 0.028 * PLATE_SCALE]
+              const r = od.rotation ?? [0, 0, 0]
+              root.position.set(p[0], p[1], p[2])
+              root.rotation.set(r[0], r[1], r[2])
+              root.traverse((o) => {
+                if (o.isMesh) o.renderOrder = 2
+              })
+              cubes[index].add(root)
+            }
+          }
+        } catch (e) {
+          console.warn('ProcessSection: label.object3d gltf failed', e)
+        }
+        return undefined
+      })()
 
       const envCfg = settings.environment ?? {}
       const roomBlurSigma = envCfg.roomBlurSigma ?? 0.04
@@ -824,6 +904,8 @@ export default function ProcessSection() {
       renderer.domElement.style.touchAction = 'none'
       renderer.domElement.style.display = 'block'
       renderer.domElement.style.cursor = 'default'
+      renderer.domElement.style.pointerEvents = 'auto'
+      if (!cancelled) setSceneReady(true)
 
       // Drag-интеракция: проекция курсора на плоскость, перпендикулярную
       // камере, проходящую через схваченный кубик. Так движение по X/Y
@@ -851,6 +933,7 @@ export default function ProcessSection() {
 
         const mesh = tileFromIntersectObject(hit.object)
         if (!mesh) return
+        finishIntroToGameplay()
         // Плоскость drag'а — параллельна экрану (нормаль = -forward камеры),
         // проходит через текущую позицию кубика. Гарантирует, что
         // во всех ракурсах drag двигает только в плоскости экрана.
@@ -925,11 +1008,108 @@ export default function ProcessSection() {
 
       const chainMaxSq = CHAIN_LENGTH * CHAIN_LENGTH
 
+      const halfCubeW = CUBE_WIDTH / 2
+      const halfCubeH = CUBE_HEIGHT / 2
+
+      const introFlyEasePow = introCfg?.easePower ?? defaults.introTrain?.easePower ?? 1.75
+      const chainRevealDelaySec = Math.max(0, introCfg?.chainRevealDelaySec ?? 0.75)
+
+      const finishIntroToGameplay = () => {
+        if (introPhase === 'done') return
+        introPhase = 'done'
+        chainPhysicsEnabled = true
+        chainWaitElapsed = 0
+        if (chainLine) chainLine.visible = true
+        for (const cube of cubes) {
+          cube.position.set(0, cube.userData.restY, 0)
+          cube.userData.velocity.set(0, 0, 0)
+        }
+      }
+
+      const resolveChainAndCollisions = () => {
+        const collW = halfCubeW + COLLIDER_PADDING
+        const collH = halfCubeH + COLLIDER_PADDING
+
+        for (let iter = 0; iter < CONSTRAINT_ITERATIONS; iter += 1) {
+          if (chainPhysicsEnabled) {
+            for (let i = 0; i < cubes.length - 1; i += 1) {
+              const a = cubes[i]
+              const b = cubes[i + 1]
+              const dx = b.position.x - a.position.x
+              const dy = b.position.y - a.position.y
+              const distSq = dx * dx + dy * dy
+              if (distSq <= chainMaxSq) continue
+
+              const dist = Math.sqrt(distSq) || 1
+              const overflow = dist - CHAIN_LENGTH
+              const aHeld = dragging?.mesh === a
+              const bHeld = dragging?.mesh === b
+
+              let wA
+              let wB
+              if (aHeld && !bHeld) {
+                wA = 0
+                wB = 1
+              } else if (bHeld && !aHeld) {
+                wA = 1
+                wB = 0
+              } else {
+                wA = 0.5
+                wB = 0.5
+              }
+
+              const ux = dx / dist
+              const uy = dy / dist
+              a.position.x += ux * overflow * wA
+              a.position.y += uy * overflow * wA
+              b.position.x -= ux * overflow * wB
+              b.position.y -= uy * overflow * wB
+            }
+          }
+
+          for (let i = 0; i < cubes.length; i += 1) {
+            for (let j = i + 1; j < cubes.length; j += 1) {
+              const a = cubes[i]
+              const b = cubes[j]
+
+              const dx = b.position.x - a.position.x
+              const dy = b.position.y - a.position.y
+              const overlapX = 2 * collW - Math.abs(dx)
+              const overlapY = 2 * collH - Math.abs(dy)
+              if (overlapX <= 0 || overlapY <= 0) continue
+
+              const aHeld = dragging?.mesh === a
+              const bHeld = dragging?.mesh === b
+              let wA
+              let wB
+              if (aHeld && !bHeld) {
+                wA = 0
+                wB = 1
+              } else if (bHeld && !aHeld) {
+                wA = 1
+                wB = 0
+              } else {
+                wA = 0.5
+                wB = 0.5
+              }
+
+              if (overlapX < overlapY) {
+                const sign = dx === 0 ? 1 : Math.sign(dx)
+                a.position.x -= sign * overlapX * wA
+                b.position.x += sign * overlapX * wB
+              } else {
+                const sign = dy === 0 ? 1 : Math.sign(dy)
+                a.position.y -= sign * overlapY * wA
+                b.position.y += sign * overlapY * wB
+              }
+            }
+          }
+        }
+      }
+
       // Тангенс полу-FOV предвычисляем — он не меняется. Камера статична
       // на (0,0,21), значит расстояние до плоскости z=0 = camera.position.z.
       const halfFovTan = Math.tan(camera.fov * 0.5 * (Math.PI / 180))
-      const halfCubeW = CUBE_WIDTH / 2
-      const halfCubeH = CUBE_HEIGHT / 2
 
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, clock.getDelta())
@@ -943,6 +1123,90 @@ export default function ProcessSection() {
         const maxX = viewW / 2 - halfCubeW
         const minY = -viewH / 2 + halfCubeH
         const maxY = viewH / 2 - halfCubeH
+
+        if (introPhase === 'fly' || introPhase === 'chain-wait') {
+          introElapsed += dt
+
+          if (introPhase === 'fly') {
+            for (const cube of cubes) {
+              const t0 = cube.userData.introFlyT0 ?? 0
+              const t1 = cube.userData.introFlyT1 ?? 0
+              const y0 = cube.userData.introFlyStartY ?? cube.userData.restY
+              const y1 = cube.userData.restY
+              const te = introElapsed
+              if (te < t0) {
+                cube.position.y = y0
+                cube.position.x = 0
+                cube.position.z = 0
+              } else if (te >= t1) {
+                cube.position.y = y1
+                cube.position.x = 0
+                cube.position.z = 0
+              } else {
+                const span = Math.max(1e-5, t1 - t0)
+                const u = (te - t0) / span
+                const eased = 1 - (1 - u) ** introFlyEasePow
+                cube.position.y = THREE.MathUtils.lerp(y0, y1, eased)
+                cube.position.x = 0
+                cube.position.z = 0
+              }
+              cube.userData.velocity.set(0, 0, 0)
+            }
+
+            const allLanded = cubes.every((c) => introElapsed >= (c.userData.introFlyT1 ?? 0))
+            if (allLanded) {
+              introPhase = 'chain-wait'
+              chainWaitElapsed = 0
+            }
+          } else {
+            for (const cube of cubes) {
+              cube.position.set(0, cube.userData.restY, 0)
+              cube.userData.velocity.set(0, 0, 0)
+            }
+            chainWaitElapsed += dt
+            if (chainWaitElapsed >= chainRevealDelaySec) {
+              introPhase = 'done'
+              chainPhysicsEnabled = true
+              if (chainLine) chainLine.visible = true
+            }
+          }
+
+          applyPlateWobble(cubes, clock.elapsedTime)
+
+          if (
+            chainLine?.visible &&
+            chainGeom &&
+            chainPositions &&
+            chainGapCount > 0
+          ) {
+            fillChainGapSegments(cubes, chainPositions, chainTop, chainBot)
+            chainGeom.attributes.position.needsUpdate = true
+          }
+
+          if (volSettings?.enabled !== false && volumetricSpot && volSettings.spotOrbit) {
+            const o = volSettings.spotOrbit
+            const sl = volSettings.spotLight
+            if (o.speed !== 0) {
+              const t = clock.elapsedTime
+              volumetricSpot.position.set(
+                Math.cos(t * o.speed) * o.radius,
+                o.height,
+                Math.sin(t * o.speed) * o.radius,
+              )
+              volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
+            } else {
+              volumetricSpot.position.set(...sl.position)
+              volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
+            }
+          }
+
+          if (renderPipeline) {
+            renderPipeline.render()
+          } else {
+            renderer.render(scene, camera)
+          }
+          return
+        }
 
         // 1) Сохраняем «доконвертные» позиции — нужны для пересчёта скоростей
         //    после проекции цепи (импульс от натяжения = Δpos / dt).
@@ -984,86 +1248,7 @@ export default function ProcessSection() {
         //    Удерживаемый кубик неподвижен (вес 0): свободный сосед/партнёр
         //    получает весь сдвиг и догоняет/отскакивает. Несколько итераций
         //    распространяют натяжение и разрешают «стопки» коллизий.
-        const collW = halfCubeW + COLLIDER_PADDING
-        const collH = halfCubeH + COLLIDER_PADDING
-
-        for (let iter = 0; iter < CONSTRAINT_ITERATIONS; iter += 1) {
-          // a) Цепь
-          for (let i = 0; i < cubes.length - 1; i += 1) {
-            const a = cubes[i]
-            const b = cubes[i + 1]
-            const dx = b.position.x - a.position.x
-            const dy = b.position.y - a.position.y
-            const distSq = dx * dx + dy * dy
-            if (distSq <= chainMaxSq) continue
-
-            const dist = Math.sqrt(distSq) || 1
-            const overflow = dist - CHAIN_LENGTH
-            const aHeld = dragging?.mesh === a
-            const bHeld = dragging?.mesh === b
-
-            let wA
-            let wB
-            if (aHeld && !bHeld) {
-              wA = 0
-              wB = 1
-            } else if (bHeld && !aHeld) {
-              wA = 1
-              wB = 0
-            } else {
-              wA = 0.5
-              wB = 0.5
-            }
-
-            const ux = dx / dist
-            const uy = dy / dist
-            a.position.x += ux * overflow * wA
-            a.position.y += uy * overflow * wA
-            b.position.x -= ux * overflow * wB
-            b.position.y -= uy * overflow * wB
-          }
-
-          // b) Столкновения — все пары (i, j), i<j. AABB перекрытие → push
-          //    по оси минимальной пенетрации. Дёшево: для 4 кубиков всего 6 пар.
-          for (let i = 0; i < cubes.length; i += 1) {
-            for (let j = i + 1; j < cubes.length; j += 1) {
-              const a = cubes[i]
-              const b = cubes[j]
-              const dx = b.position.x - a.position.x
-              const dy = b.position.y - a.position.y
-              const overlapX = 2 * collW - Math.abs(dx)
-              const overlapY = 2 * collH - Math.abs(dy)
-              if (overlapX <= 0 || overlapY <= 0) continue
-
-              const aHeld = dragging?.mesh === a
-              const bHeld = dragging?.mesh === b
-              let wA
-              let wB
-              if (aHeld && !bHeld) {
-                wA = 0
-                wB = 1
-              } else if (bHeld && !aHeld) {
-                wA = 1
-                wB = 0
-              } else {
-                wA = 0.5
-                wB = 0.5
-              }
-
-              if (overlapX < overlapY) {
-                // Раздвигаем по X: знак = направление от a к b. Если кубики
-                // строго совпали (dx=0) — берём +1 как дефолт.
-                const sign = dx === 0 ? 1 : Math.sign(dx)
-                a.position.x -= sign * overlapX * wA
-                b.position.x += sign * overlapX * wB
-              } else {
-                const sign = dy === 0 ? 1 : Math.sign(dy)
-                a.position.y -= sign * overlapY * wA
-                b.position.y += sign * overlapY * wB
-              }
-            }
-          }
-        }
+        resolveChainAndCollisions()
 
         // 4) Position-clamp по границам экрана. Делаем ДО согласования скорости —
         //    тогда v = (clampedPos − oldPos) / dt сама по себе оказывается
@@ -1092,41 +1277,36 @@ export default function ProcessSection() {
         //    нормальную составляющую с малым коэффициентом возврата и слегка
         //    гасим тангенциальную (трение). Удерживаемый не отражается —
         //    его уже «тормозит» пружина с клэмпнутой целью.
-        const eps = 1e-3
-        for (const cube of cubes) {
-          if (dragging?.mesh === cube) continue
-          const v = cube.userData.velocity
-          if (cube.position.x >= maxX - eps && v.x > 0) {
-            v.x = -v.x * BOUNCE_RESTITUTION
-            v.y *= BOUNCE_TANGENT_FRICTION
-          } else if (cube.position.x <= minX + eps && v.x < 0) {
-            v.x = -v.x * BOUNCE_RESTITUTION
-            v.y *= BOUNCE_TANGENT_FRICTION
-          }
-          if (cube.position.y >= maxY - eps && v.y > 0) {
-            v.y = -v.y * BOUNCE_RESTITUTION
-            v.x *= BOUNCE_TANGENT_FRICTION
-          } else if (cube.position.y <= minY + eps && v.y < 0) {
-            v.y = -v.y * BOUNCE_RESTITUTION
-            v.x *= BOUNCE_TANGENT_FRICTION
+        if (introPhase === 'done') {
+          const eps = 1e-3
+          for (const cube of cubes) {
+            if (dragging?.mesh === cube) continue
+            const v = cube.userData.velocity
+            if (cube.position.x >= maxX - eps && v.x > 0) {
+              v.x = -v.x * BOUNCE_RESTITUTION
+              v.y *= BOUNCE_TANGENT_FRICTION
+            } else if (cube.position.x <= minX + eps && v.x < 0) {
+              v.x = -v.x * BOUNCE_RESTITUTION
+              v.y *= BOUNCE_TANGENT_FRICTION
+            }
+            if (cube.position.y >= maxY - eps && v.y > 0) {
+              v.y = -v.y * BOUNCE_RESTITUTION
+              v.x *= BOUNCE_TANGENT_FRICTION
+            } else if (cube.position.y <= minY + eps && v.y < 0) {
+              v.y = -v.y * BOUNCE_RESTITUTION
+              v.x *= BOUNCE_TANGENT_FRICTION
+            }
           }
         }
 
         // 7) Idle-покачивание. На физику не влияет, ставим абсолютные углы
         //    как sin(t·speed + phase) → амплитуда ограничена MAX_WOBBLE_TILT_RAD.
-        const now = clock.elapsedTime
-        for (const cube of cubes) {
-          const w = cube.userData.wobble
-          cube.rotation.x = MAX_WOBBLE_TILT_RAD * Math.sin(now * w.speedX + w.phaseX)
-          cube.rotation.y = MAX_WOBBLE_TILT_RAD * Math.sin(now * w.speedY + w.phaseY)
-          cube.rotation.z = MAX_WOBBLE_TILT_RAD * Math.sin(now * w.speedZ + w.phaseZ)
-        }
+        applyPlateWobble(cubes, clock.elapsedTime)
 
         // 8) Цепь: только отрезки в зазорах (лицевая сторона), без вертикали по центру плашки.
-        if (chainGeom && chainPositions && chainGapCount > 0) {
+        if (chainLine?.visible && chainGeom && chainPositions && chainGapCount > 0) {
           fillChainGapSegments(cubes, chainPositions, chainTop, chainBot)
           chainGeom.attributes.position.needsUpdate = true
-          chainLine.computeLineDistances()
         }
 
         if (volSettings?.enabled !== false && volumetricSpot && volSettings.spotOrbit) {
@@ -1162,6 +1342,7 @@ export default function ProcessSection() {
 
     return () => {
       cancelled = true
+      setSceneReady(false)
       window.removeEventListener('resize', onResize)
       resizeObserver?.disconnect()
       if (renderer) {
@@ -1191,6 +1372,11 @@ export default function ProcessSection() {
   return (
     <section id="process" className="relative h-svh w-full bg-black">
       <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
+      <ProcessSectionTextOverlay
+        items={settings.textOverlays ?? defaults.textOverlays}
+        itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}
+        sceneReady={sceneReady}
+      />
     </section>
   )
 }

@@ -1,6 +1,49 @@
 import * as THREE from 'three/webgpu'
 
 /**
+ * Шаблон одного текстового оверлея: каждый элемент `PROCESS_SECTION_SETTINGS.textOverlays`
+ * поверх этого объекта делается shallow-merge (можно задать только `text` и тайминги).
+ */
+export const PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS = {
+  enabled: true,
+  text: '',
+  fontSizePx: 17,
+  fontFamily: "'Inter', system-ui, sans-serif",
+  fontWeight: '500',
+  color: 'rgba(236, 242, 250, 0.94)',
+  lineHeight: 1.4,
+  letterSpacing: '0.01em',
+  /**
+   * Полоса по высоте секции, 0 = верх, 100 = низ. Удобные значения: 0, 25, 50, 75, 100.
+   * Если задано число (или только `xSide`) — используется режим «квартиль + лево/право»;
+   * тогда `placement` / `corner` не используются.
+   */
+  yPercent: null,
+  /** `left` | `right` — к какому горизонтальному краю прижать блок (с отступом `insetPx`). */
+  xSide: null,
+  /**
+   * Какую точку текста привязать к линии `yPercent`: `top` | `center` | `bottom`.
+   * `null` — по `yPercent` подбирается автоматически (0/25 → верх блока, 50 → центр, 75/100 → низ).
+   */
+  yOrigin: null,
+  /** `corner` — угол + `insetPx`; `center` — по центру кадра (если не задан режим yPercent/xSide). */
+  placement: 'corner',
+  /** `top-left` | `top-right` | `bottom-left` | `bottom-right` | устар. `center-left` / `center-right`. */
+  corner: 'bottom-left',
+  /** Отступ от краёв секции (px). Для `placement: center` — паддинг вокруг блока. */
+  insetPx: 28,
+  maxWidthPx: 340,
+  /** `left` | `right` | `center` */
+  textAlign: 'left',
+  /** Секунды после готовности сцены — старт fade-in. */
+  showAfterSec: 1.2,
+  fadeInSec: 0.65,
+  /** Секунды после готовности сцены — старт fade-out (должно быть > show + fade-in). */
+  hideAfterSec: 14,
+  fadeOutSec: 0.75,
+}
+
+/**
  * Секция «Process» (цепь кубиков в WebGPU). HMR: правки применяются без перезагрузки.
  *
  * `cubes[]` — по одному элементу на каждый кубик (порядок = сверху вниз).
@@ -19,6 +62,101 @@ export const PROCESS_SECTION_SETTINGS = {
     /** Сила `scene.environmentIntensity` (нет точечных/направленных источников). */
     intensity: 1,
   },
+
+  /**
+   * Старт: плашки не связаны цепью — каждая сама подлетает к своему restY.
+   * После посадки всех — пауза `chainRevealDelaySec`, затем появляется нить и включается цепь в физике.
+   */
+  introTrain: {
+    enabled: true,
+    /**
+     * Доп. зазор ниже нижнего края кадра: верх первой в порядке подлёта стартует за экраном.
+     */
+    startBelowMargin: 1.2,
+    /** Пустой кадр в начале (сек). */
+    introBlankSeconds: 0.18,
+    /** Длительность подлёта одной плашки до своей позиции (сек). */
+    plateFlyDurationSec: 5.15,
+    /** Задержка между стартом подлёта следующей плашки (сек), в порядке `flyOrder`. */
+    staggerBetweenPlatesSec: 3.45,
+    /** После посадки всех — пауза до появления нити и включения цепи (сек). */
+    chainRevealDelaySec: 0.85,
+    /** Ease-out подлёта одной плашки. */
+    easePower: 1.75,
+    /** `top-first` — сначала «1. …», затем ниже; `bottom-first` — снизу вверх. */
+    flyOrder: 'top-first',
+  },
+
+  /**
+   * Несколько HTML-текстов поверх canvas (`pointer-events: none`).
+   * Каждый элемент — частичная настройка поверх `PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS`.
+   * Тайминги от момента готовности сцены (canvas в DOM после `renderer.init`).
+   * Опционально `id` (строка) — стабильный ключ для React.
+   */
+  textOverlays: [
+    {
+      id: 'hint-drag',
+      fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 40,
+      text: 'Когда появляется вещь,',
+      yPercent: 10,
+      xSide: 'left',
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'left',
+      showAfterSec: 1,
+      fadeInSec: 0.65,
+      hideAfterSec: 14,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 60,
+      text: 'МЫ',
+      yPercent: 25,
+      xSide: 'left',
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'left',
+      showAfterSec: 4,
+      fadeInSec: 0.65,
+      hideAfterSec: 14,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 60,
+      text: 'Как \n её \n утяжелить.',
+      yPercent: 25,
+      xSide: 'right',
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'right',
+      showAfterSec: 4.5,
+      fadeInSec: 0.65,
+      hideAfterSec: 14,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-scroll',
+      text: 'Мы думаем, как её утяжелить.',
+      fontSizePx: 15,
+      yPercent: 50,
+      xSide: 'right',
+      yOrigin: 'center',
+      maxWidthPx: 260,
+      textAlign: 'right',
+      showAfterSec: 1,
+      fadeInSec: 0.5,
+      hideAfterSec: 20,
+      fadeOutSec: 0.65,
+    },
+  ],
 
   /**
    * Объёмный свет (как в VolumetricLightingSection): большой raymarch-бокс + spot,
@@ -140,9 +278,9 @@ export const PROCESS_SECTION_SETTINGS = {
     object3d: {
       enabled: false,
       primitive: 'sphere',
-      size: 0.42,
-      /** Локальный Z ≈ половина глубины плашки (0.375/2) + вынесение к камере */
-      position: [0, -0.78, 0.216],
+      size: 0.336,
+      /** Локальный Z ≈ половина глубины плашки + вынесение к камере (под текущий PLATE_SCALE). */
+      position: [0, -0.624, 0.173],
       rotation: [0, 0, 0],
       metalness: 0.86,
       roughness: 0.38,
@@ -160,8 +298,7 @@ export const PROCESS_SECTION_SETTINGS = {
     {
       label: {
         text: '1. Думаем',
-        subtitle: 'как утяжелить',
-        object3d: { enabled: true, primitive: 'icosahedron', size: 0.4, position: [0, -0.76, 0.216] },
+        object3d: { enabled: true, primitive: 'icosahedron', size: 0.324, position: [0, -0.612, 0.173] },
       },
       // Медь: тёплый красноватый отлив, относительно гладкая полированная поверхность.
       procedural: { preset: 'copper', seed: 90421 },
@@ -174,9 +311,8 @@ export const PROCESS_SECTION_SETTINGS = {
     },
     {
       label: {
-          text: '2. Собираем металл',
-        subtitle: 'В подмосковном лесу',
-        object3d: { enabled: true, primitive: 'box', size: 0.38, position: [0, -0.76, 0.216] },
+          text: '2. Собираем ',
+        object3d: { enabled: true, primitive: 'box', size: 0.3, position: [0, -0.612, 0.173] },
       },
       // Свинец: холодный сине-серый, очень матовый «тяжёлый» металл.
       procedural: { preset: 'lead', seed: 48291 },
@@ -189,9 +325,8 @@ export const PROCESS_SECTION_SETTINGS = {
     },
     {
       label: {
-        text: '3. Плавим металл',
-        subtitle: 'В печке ',
-        object3d: { enabled: true, primitive: 'torusKnot', size: 0.4, position: [0, -0.77, 0.216] },
+        text: '3. Плавим',
+        object3d: { enabled: true, primitive: 'torusKnot', size: 0.324, position: [0, -0.612, 0.173] },
       },
       // Алюминий: светло-серый, средняя шероховатость (анод / шлифовка).
       procedural: { preset: 'aluminum', seed: 71004 },
@@ -204,9 +339,8 @@ export const PROCESS_SECTION_SETTINGS = {
     },
     {
       label: {
-        text: '4. Утяжеляем предмет',
-        subtitle: 'и всё предмет тяжелый',
-        object3d: { enabled: true, primitive: 'cylinder', size: 0.4, position: [0, -0.76, 0.216] },
+        text: '4. Утяжеляем ',
+        object3d: { enabled: true, primitive: 'cylinder', size: 0.324, position: [0, -0.612, 0.173] },
       },
       // Бронза: золотисто-коричневый сплав, чуть шероховатая литая поверхность.
       procedural: { preset: 'bronze', seed: 33657 },

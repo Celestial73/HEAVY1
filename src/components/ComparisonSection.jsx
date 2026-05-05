@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { animated, useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { COMPARISON_SECTION_SETTINGS as defaults } from '../config/comparisonSectionSettings.js'
+import { preloadWorkflowSection } from '../utils/workflowSectionChunk.js'
 import NextNavLink from './NextNavLink'
 
 function FeatherIcon() {
@@ -471,6 +472,11 @@ export default function ComparisonSection() {
   }, [])
 
   const { layout, text, cta, intro } = settings
+
+  useEffect(() => {
+    if (cta.to !== '/workflow') return
+    preloadWorkflowSection()
+  }, [cta.to])
 
   return (
     <section id={layout.sectionId} className={layout.sectionClassName}>

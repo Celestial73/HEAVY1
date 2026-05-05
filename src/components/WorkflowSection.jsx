@@ -459,15 +459,10 @@ export default function WorkflowSection() {
 
     const mobile = isWorkflowMobileProfile()
     const volumetricEnabled = !(mobile && WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE)
+    /** Упрощения плашек / shadow map — только если на мобильном ещё включён volumetric. */
+    const reduceMobilePlateQuality = mobile && volumetricEnabled
     const volumetricSource = !volumetricEnabled
-      ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, {
-          renderer: {
-            antialias: false,
-            maxPixelRatio: 1,
-            shadowMapEnabled: true,
-            shadowMapType: 'basic',
-          },
-        })
+      ? WORKFLOW_VOLUMETRIC_SETTINGS
       : mobile
         ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES)
         : WORKFLOW_VOLUMETRIC_SETTINGS
@@ -596,14 +591,14 @@ export default function WorkflowSection() {
         }
         const mat = new THREE.MeshStandardMaterial(matOpts)
         const mergedLabel = mergeProcessLabel(processDefaults.defaultLabel, spec.label)
-        const labelForBuild = mobile
+        const labelForBuild = reduceMobilePlateQuality
           ? {
               ...mergedLabel,
               maxCanvasSide: Math.min(mergedLabel.maxCanvasSide ?? 2048, 1024),
               pixelsPerUnit: Math.min(mergedLabel.pixelsPerUnit ?? 180, 128),
             }
           : mergedLabel
-        const tile = buildPlateWithBezel(mat, labelForBuild, { lowDetail: mobile })
+        const tile = buildPlateWithBezel(mat, labelForBuild, { lowDetail: reduceMobilePlateQuality })
         tile.userData.proceduralDispose = proceduralDispose
         const restY = topY - i * COMBAT_STRIDE
         tile.userData.restY = restY
@@ -668,7 +663,7 @@ export default function WorkflowSection() {
         const pointLight = new THREE.PointLight(cfg.color, cfg.intensity, cfg.distance)
         pointLight.position.set(...cfg.initialPosition)
         pointLight.castShadow = cfg.castShadow ?? false
-        if (mobile && pointLight.castShadow) {
+        if (reduceMobilePlateQuality && pointLight.castShadow) {
           pointLight.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
         }
         pointLight.layers.enable(V.layerIndex)
@@ -698,11 +693,11 @@ export default function WorkflowSection() {
       spotLight.decay = WORKFLOW_LIGHT_SETTINGS.spotLight.decay
       spotLight.distance = WORKFLOW_LIGHT_SETTINGS.spotLight.distance
       spotLight.castShadow = WORKFLOW_LIGHT_SETTINGS.spotLight.castShadow
-      if (mobile && spotLight.castShadow) {
+      if (reduceMobilePlateQuality && spotLight.castShadow) {
         spotLight.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
       }
       spotLight.layers.enable(V.layerIndex)
-      const spotMapCfg = mobile
+      const spotMapCfg = reduceMobilePlateQuality
         ? {
             ...WORKFLOW_LIGHT_SETTINGS.spotColorMap,
             size: Math.min(WORKFLOW_LIGHT_SETTINGS.spotColorMap?.size ?? 256, 128),

@@ -71,7 +71,8 @@ export const WORKFLOW_LIGHT_SETTINGS = {
 
 /**
  * На мобильном (`isWorkflowMobileProfile`) не строить volumetric pass — только обычный рендер сцены.
- * Снимает основную нагрузку WebGPU; туман и объёмный свет отключаются.
+ * При `true` рендер на телефоне использует те же настройки качества, что и `WORKFLOW_VOLUMETRIC_SETTINGS`
+ * (antialias, DPR, PCF и т.д.); `WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES` применяются только если volumetric на мобильном включён.
  */
 export const WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE = true
 

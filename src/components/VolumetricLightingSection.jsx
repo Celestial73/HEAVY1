@@ -284,6 +284,7 @@ function createSpotColorMap(cfg) {
 export default function VolumetricLightingSection() {
   const containerRef = useRef(null)
   const [settings, setSettings] = useState(volumetricLightingDefaults)
+  const [sceneReady, setSceneReady] = useState(false)
 
   useEffect(() => {
     if (!import.meta.hot) return undefined
@@ -294,6 +295,7 @@ export default function VolumetricLightingSection() {
   }, [])
 
   useEffect(() => {
+    setSceneReady(false)
     const S = settings
     const container = containerRef.current
     if (!container) return undefined
@@ -338,6 +340,7 @@ export default function VolumetricLightingSection() {
       renderer.shadowMap.type = S.renderer.shadowMapType
 
       container.appendChild(renderer.domElement)
+      if (!cancelled) setSceneReady(true)
 
       const scene = new THREE.Scene()
       camera = new THREE.PerspectiveCamera(
@@ -770,6 +773,7 @@ export default function VolumetricLightingSection() {
 
     return () => {
       cancelled = true
+      setSceneReady(false)
       window.removeEventListener('resize', onWindowResize)
       resizeObserver?.disconnect()
 
@@ -791,6 +795,16 @@ export default function VolumetricLightingSection() {
       className={settings.layout.sectionClassName}
       style={{ touchAction: settings.layout.touchAction }}
     >
+      {!sceneReady && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
+          <div className="flex flex-col items-center gap-5 text-white/90">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white/90" />
+            <div className="text-xs font-medium uppercase tracking-[0.25em] text-white/70">
+              Loading
+            </div>
+          </div>
+        </div>
+      )}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
         <button
           type="button"

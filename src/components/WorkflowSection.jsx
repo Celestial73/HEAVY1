@@ -24,6 +24,7 @@ import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
 import {
   PROCESS_SECTION_SETTINGS as processDefaults,
   PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
+  WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE,
   WORKFLOW_LIGHT_SETTINGS,
   WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES,
   WORKFLOW_VOLUMETRIC_SETTINGS,
@@ -457,9 +458,19 @@ export default function WorkflowSection() {
     let cancelled = false
 
     const mobile = isWorkflowMobileProfile()
-    const volumetricSource = mobile
-      ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES)
-      : WORKFLOW_VOLUMETRIC_SETTINGS
+    const volumetricEnabled = !(mobile && WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE)
+    const volumetricSource = !volumetricEnabled
+      ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, {
+          renderer: {
+            antialias: false,
+            maxPixelRatio: 1,
+            shadowMapEnabled: true,
+            shadowMapType: 'basic',
+          },
+        })
+      : mobile
+        ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES)
+        : WORKFLOW_VOLUMETRIC_SETTINGS
     const V = resolveWorkflowVolumetricSettings(volumetricSource)
 
     const onResize = () => {
@@ -519,35 +530,41 @@ export default function WorkflowSection() {
       controls.minDistance = 8
       controls.maxDistance = 40
 
-      noiseTexture3D = createTexture3D(V.noiseTexture3D)
-      const smokeAmount = uniform(V.volume.smokeAmount)
-      const ts = V.volume.timeScroll
+      let volumetricMaterial = null
+      if (volumetricEnabled) {
+        noiseTexture3D = createTexture3D(V.noiseTexture3D)
+        const smokeAmount = uniform(V.volume.smokeAmount)
+        const ts = V.volume.timeScroll
 
-      const volumetricMaterial = new THREE.VolumeNodeMaterial()
-      volumetricMaterial.steps = V.volume.rayMarchSteps
-      volumetricMaterial.offsetNode = bayer16(screenCoordinate)
-      volumetricMaterial.scatteringNode = Fn(({ positionRay }) => {
-        const timeScaled = vec3(time.mul(ts.x), ts.y, time.mul(ts.z))
-        const samples = V.volume.grainSamples
-        const sampleGrain = (scale, timeScale = 1) =>
-          texture3D(noiseTexture3D, positionRay.add(timeScaled.mul(timeScale)).mul(scale).mod(1), 0).r.add(0.5)
-        let density = sampleGrain(samples[0].scale, samples[0].timeScale)
-        for (let g = 1; g < samples.length; g += 1) {
-          density = density.mul(sampleGrain(samples[g].scale, samples[g].timeScale))
-        }
-        return mix(1, density, smokeAmount)
-      })
+        volumetricMaterial = new THREE.VolumeNodeMaterial()
+        volumetricMaterial.steps = V.volume.rayMarchSteps
+        volumetricMaterial.offsetNode = bayer16(screenCoordinate)
+        volumetricMaterial.scatteringNode = Fn(({ positionRay }) => {
+          const timeScaled = vec3(time.mul(ts.x), ts.y, time.mul(ts.z))
+          const samples = V.volume.grainSamples
+          const sampleGrain = (scale, timeScale = 1) =>
+            texture3D(noiseTexture3D, positionRay.add(timeScaled.mul(timeScale)).mul(scale).mod(1), 0).r.add(0.5)
+          let density = sampleGrain(samples[0].scale, samples[0].timeScale)
+          for (let g = 1; g < samples.length; g += 1) {
+            density = density.mul(sampleGrain(samples[g].scale, samples[g].timeScale))
+          }
+          return mix(1, density, smokeAmount)
+        })
 
-      const box = V.volumetricBox
-      volumetricMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(box.width, box.height, box.depth),
-        volumetricMaterial,
-      )
-      volumetricMesh.receiveShadow = box.receiveShadow
-      volumetricMesh.position.y = box.positionY
-      volumetricMesh.layers.disableAll()
-      volumetricMesh.layers.enable(V.layerIndex)
-      scene.add(volumetricMesh)
+        const box = V.volumetricBox
+        volumetricMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(box.width, box.height, box.depth),
+          volumetricMaterial,
+        )
+        volumetricMesh.receiveShadow = box.receiveShadow
+        volumetricMesh.position.y = box.positionY
+        volumetricMesh.layers.disableAll()
+        volumetricMesh.layers.enable(V.layerIndex)
+        scene.add(volumetricMesh)
+      } else {
+        noiseTexture3D = null
+        volumetricMesh = null
+      }
 
       const cubeSpecs = processDefaults.cubes ?? []
       await loadProcessLabelFonts(processDefaults)
@@ -697,20 +714,24 @@ export default function WorkflowSection() {
       scene.add(spotLight.target)
 
       renderPipeline = new THREE.RenderPipeline(renderer)
-      const scenePass = pass(scene, camera)
-      const sceneDepth = scenePass.getTextureNode('depth')
-      volumetricMaterial.depthNode = sceneDepth.sample(screenUV)
-      const volumetricLayer = new THREE.Layers()
-      volumetricLayer.disableAll()
-      volumetricLayer.enable(V.layerIndex)
-      const volumetricPass = pass(scene, camera, { depthBuffer: V.postProcessing.volumetricPassDepthBuffer })
-      volumetricPass.name = 'Workflow volumetric'
-      volumetricPass.setLayers(volumetricLayer)
-      volumetricPass.setResolutionScale(V.postProcessing.volumetricResolutionScale)
-      const denoiseStrength = uniform(V.postProcessing.denoiseStrength)
-      const blurredVolumetricPass = gaussianBlur(volumetricPass, denoiseStrength)
-      const volumetricLightingIntensity = uniform(V.postProcessing.volumetricLightingIntensity)
-      renderPipeline.outputNode = add(scenePass, mul(blurredVolumetricPass, volumetricLightingIntensity))
+      if (volumetricEnabled) {
+        const scenePass = pass(scene, camera)
+        const sceneDepth = scenePass.getTextureNode('depth')
+        volumetricMaterial.depthNode = sceneDepth.sample(screenUV)
+        const volumetricLayer = new THREE.Layers()
+        volumetricLayer.disableAll()
+        volumetricLayer.enable(V.layerIndex)
+        const volumetricPass = pass(scene, camera, { depthBuffer: V.postProcessing.volumetricPassDepthBuffer })
+        volumetricPass.name = 'Workflow volumetric'
+        volumetricPass.setLayers(volumetricLayer)
+        volumetricPass.setResolutionScale(V.postProcessing.volumetricResolutionScale)
+        const denoiseStrength = uniform(V.postProcessing.denoiseStrength)
+        const blurredVolumetricPass = gaussianBlur(volumetricPass, denoiseStrength)
+        const volumetricLightingIntensity = uniform(V.postProcessing.volumetricLightingIntensity)
+        renderPipeline.outputNode = add(scenePass, mul(blurredVolumetricPass, volumetricLightingIntensity))
+      } else {
+        renderPipeline.outputNode = pass(scene, camera)
+      }
 
       const clock = new THREE.Clock()
       spotLight.target.position.set(...WORKFLOW_LIGHT_SETTINGS.spotLight.target)

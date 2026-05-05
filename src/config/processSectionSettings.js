@@ -5,6 +5,12 @@ const PROCESS_TEXT_HIDE_AFTER_SEC = 18
  * Вынесен сюда, чтобы управлять положением/силой из одного конфига.
  */
 export const WORKFLOW_LIGHT_SETTINGS = {
+  /**
+   * На мобильном размер карт теней у источников с castShadow (дешевле GPU).
+   * Не отключайте castShadow у всех светов: в three.js volumetric умножает свет на shadowNode;
+   * без теней shadowNode остаётся null и объёмный свет пропадает.
+   */
+  mobileShadowMapSize: 256,
   pointLights: [
     {
       color: 0xffffff,
@@ -109,6 +115,38 @@ export const WORKFLOW_VOLUMETRIC_SETTINGS = {
     volumetricResolutionScale: 0.25,
     denoiseStrength: 0.6,
     volumetricLightingIntensity: 1,
+  },
+}
+
+/**
+ * Shallow-deep merge поверх `WORKFLOW_VOLUMETRIC_SETTINGS` для `isWorkflowMobileProfile()`.
+ * Массивы из этого объекта полностью заменяют базовые (например `grainSamples`).
+ */
+export const WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES = {
+  renderer: {
+    antialias: false,
+    maxPixelRatio: 1,
+    /** Нельзя отключать: иначе у Point/Spot не создаётся shadowNode, volumetric обнуляется (см. VolumetricLightingModel.direct). */
+    shadowMapEnabled: true,
+    shadowMapType: 'basic',
+  },
+  noiseTexture3D: {
+    size: 64,
+  },
+  volume: {
+    /** Больше, чем на десктопе: при малых шагах march и сильном blur слабый smokeAmount даёт нулевую картинку. */
+    rayMarchSteps: 8,
+    smokeAmount: 0.085,
+    grainSamples: [
+      { scale: 0.1, timeScale: 1 },
+      { scale: 0.05, timeScale: 1 },
+      { scale: 0.02, timeScale: 2 },
+    ],
+  },
+  postProcessing: {
+    volumetricResolutionScale: 0.22,
+    denoiseStrength: 0.32,
+    volumetricLightingIntensity: 1.35,
   },
 }
 

@@ -25,8 +25,10 @@ import {
   PROCESS_SECTION_SETTINGS as processDefaults,
   PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
   WORKFLOW_LIGHT_SETTINGS,
+  WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES,
   WORKFLOW_VOLUMETRIC_SETTINGS,
 } from '../config/processSectionSettings.js'
+import { isWorkflowMobileProfile } from '../utils/workflowMobileProfile.js'
 
 function createTexture3D(cfg) {
   const data = new Uint8Array(cfg.size * cfg.size * cfg.size)
@@ -54,9 +56,25 @@ function createTexture3D(cfg) {
   return tex
 }
 
-function resolveWorkflowVolumetricSettings() {
-  const r = WORKFLOW_VOLUMETRIC_SETTINGS.renderer ?? {}
-  const textureCfg = WORKFLOW_VOLUMETRIC_SETTINGS.noiseTexture3D ?? {}
+function deepMergeWorkflowConfig(a, b) {
+  if (!b) return { ...a }
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) {
+    if (v === undefined) continue
+    if (Array.isArray(v)) {
+      out[k] = v
+    } else if (v !== null && typeof v === 'object') {
+      out[k] = deepMergeWorkflowConfig(a[k] ?? {}, v)
+    } else {
+      out[k] = v
+    }
+  }
+  return out
+}
+
+function resolveWorkflowVolumetricSettings(source = WORKFLOW_VOLUMETRIC_SETTINGS) {
+  const r = source.renderer ?? {}
+  const textureCfg = source.noiseTexture3D ?? {}
   const mapTone = {
     neutral: THREE.NeutralToneMapping,
     aces: THREE.ACESFilmicToneMapping,
@@ -77,13 +95,14 @@ function resolveWorkflowVolumetricSettings() {
     red: THREE.RedFormat,
   }
   const mapShadowType = {
+    basic: THREE.BasicShadowMap,
     pcf: THREE.PCFShadowMap,
     pcfsoft: THREE.PCFSoftShadowMap,
     vsm: THREE.VSMShadowMap,
   }
 
   return {
-    ...WORKFLOW_VOLUMETRIC_SETTINGS,
+    ...source,
     renderer: {
       antialias: r.antialias ?? true,
       maxPixelRatio: r.maxPixelRatio ?? 2,
@@ -358,13 +377,16 @@ function createPlateObject3d(plateMat, mergedLabel) {
   return mesh
 }
 
-function buildPlateWithBezel(plateMat, mergedLabel) {
+function buildPlateWithBezel(plateMat, mergedLabel, opts = {}) {
+  const lowDetail = opts.lowDetail === true
+  const plateSeg = lowDetail ? 3 : PLATE_BEVEL_SEGMENTS
+  const frameSeg = lowDetail ? 2 : FRAME_BEVEL_SEGMENTS
   const tile = new THREE.Group()
   const plateGeom = new RoundedBoxGeometry(
     CUBE_WIDTH,
     CUBE_HEIGHT,
     CUBE_DEPTH,
-    PLATE_BEVEL_SEGMENTS,
+    plateSeg,
     PLATE_BEVEL_RADIUS,
   )
   const plate = new THREE.Mesh(plateGeom, plateMat)
@@ -378,10 +400,10 @@ function buildPlateWithBezel(plateMat, mergedLabel) {
   const zc = CUBE_DEPTH * 0.5 + FRAME_OUTSET * 0.5
   const innerH = Math.max(0.02, CUBE_HEIGHT - 2 * FRAME_RAIL)
   const segments = [
-    { geom: new RoundedBoxGeometry(CUBE_WIDTH, FRAME_RAIL, FRAME_OUTSET, FRAME_BEVEL_SEGMENTS, FRAME_BEVEL_RADIUS), pos: [0, CUBE_HEIGHT * 0.5 - FRAME_RAIL * 0.5, zc] },
-    { geom: new RoundedBoxGeometry(CUBE_WIDTH, FRAME_RAIL, FRAME_OUTSET, FRAME_BEVEL_SEGMENTS, FRAME_BEVEL_RADIUS), pos: [0, -CUBE_HEIGHT * 0.5 + FRAME_RAIL * 0.5, zc] },
-    { geom: new RoundedBoxGeometry(FRAME_RAIL, innerH, FRAME_OUTSET, FRAME_BEVEL_SEGMENTS, FRAME_BEVEL_RADIUS), pos: [-CUBE_WIDTH * 0.5 + FRAME_RAIL * 0.5, 0, zc] },
-    { geom: new RoundedBoxGeometry(FRAME_RAIL, innerH, FRAME_OUTSET, FRAME_BEVEL_SEGMENTS, FRAME_BEVEL_RADIUS), pos: [CUBE_WIDTH * 0.5 - FRAME_RAIL * 0.5, 0, zc] },
+    { geom: new RoundedBoxGeometry(CUBE_WIDTH, FRAME_RAIL, FRAME_OUTSET, frameSeg, FRAME_BEVEL_RADIUS), pos: [0, CUBE_HEIGHT * 0.5 - FRAME_RAIL * 0.5, zc] },
+    { geom: new RoundedBoxGeometry(CUBE_WIDTH, FRAME_RAIL, FRAME_OUTSET, frameSeg, FRAME_BEVEL_RADIUS), pos: [0, -CUBE_HEIGHT * 0.5 + FRAME_RAIL * 0.5, zc] },
+    { geom: new RoundedBoxGeometry(FRAME_RAIL, innerH, FRAME_OUTSET, frameSeg, FRAME_BEVEL_RADIUS), pos: [-CUBE_WIDTH * 0.5 + FRAME_RAIL * 0.5, 0, zc] },
+    { geom: new RoundedBoxGeometry(FRAME_RAIL, innerH, FRAME_OUTSET, frameSeg, FRAME_BEVEL_RADIUS), pos: [CUBE_WIDTH * 0.5 - FRAME_RAIL * 0.5, 0, zc] },
   ]
   for (const { geom, pos } of segments) {
     const rail = new THREE.Mesh(geom, frameMat)
@@ -434,7 +456,11 @@ export default function WorkflowSection() {
     let spotColorMap
     let cancelled = false
 
-    const V = resolveWorkflowVolumetricSettings()
+    const mobile = isWorkflowMobileProfile()
+    const volumetricSource = mobile
+      ? deepMergeWorkflowConfig(WORKFLOW_VOLUMETRIC_SETTINGS, WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES)
+      : WORKFLOW_VOLUMETRIC_SETTINGS
+    const V = resolveWorkflowVolumetricSettings(volumetricSource)
 
     const onResize = () => {
       if (!renderer || !camera || !container) return
@@ -553,7 +579,14 @@ export default function WorkflowSection() {
         }
         const mat = new THREE.MeshStandardMaterial(matOpts)
         const mergedLabel = mergeProcessLabel(processDefaults.defaultLabel, spec.label)
-        const tile = buildPlateWithBezel(mat, mergedLabel)
+        const labelForBuild = mobile
+          ? {
+              ...mergedLabel,
+              maxCanvasSide: Math.min(mergedLabel.maxCanvasSide ?? 2048, 1024),
+              pixelsPerUnit: Math.min(mergedLabel.pixelsPerUnit ?? 180, 128),
+            }
+          : mergedLabel
+        const tile = buildPlateWithBezel(mat, labelForBuild, { lowDetail: mobile })
         tile.userData.proceduralDispose = proceduralDispose
         const restY = topY - i * COMBAT_STRIDE
         tile.userData.restY = restY
@@ -613,10 +646,14 @@ export default function WorkflowSection() {
         : WORKFLOW_LIGHT_SETTINGS.pointLight
           ? [WORKFLOW_LIGHT_SETTINGS.pointLight]
           : []
+      const mobileShadowMapSize = WORKFLOW_LIGHT_SETTINGS.mobileShadowMapSize ?? 256
       for (const cfg of pointLightConfigs) {
         const pointLight = new THREE.PointLight(cfg.color, cfg.intensity, cfg.distance)
         pointLight.position.set(...cfg.initialPosition)
         pointLight.castShadow = cfg.castShadow ?? false
+        if (mobile && pointLight.castShadow) {
+          pointLight.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
+        }
         pointLight.layers.enable(V.layerIndex)
         scene.add(pointLight)
         pointLights.push(pointLight)
@@ -644,8 +681,17 @@ export default function WorkflowSection() {
       spotLight.decay = WORKFLOW_LIGHT_SETTINGS.spotLight.decay
       spotLight.distance = WORKFLOW_LIGHT_SETTINGS.spotLight.distance
       spotLight.castShadow = WORKFLOW_LIGHT_SETTINGS.spotLight.castShadow
+      if (mobile && spotLight.castShadow) {
+        spotLight.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
+      }
       spotLight.layers.enable(V.layerIndex)
-      spotColorMap = createSpotColorMap(WORKFLOW_LIGHT_SETTINGS.spotColorMap) || undefined
+      const spotMapCfg = mobile
+        ? {
+            ...WORKFLOW_LIGHT_SETTINGS.spotColorMap,
+            size: Math.min(WORKFLOW_LIGHT_SETTINGS.spotColorMap?.size ?? 256, 128),
+          }
+        : WORKFLOW_LIGHT_SETTINGS.spotColorMap
+      spotColorMap = createSpotColorMap(spotMapCfg) || undefined
       spotLight.map = spotColorMap
       scene.add(spotLight)
       scene.add(spotLight.target)

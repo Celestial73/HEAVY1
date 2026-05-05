@@ -19,7 +19,9 @@ import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js'
 import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { VOLUMETRIC_LIGHTING_SETTINGS as volumetricLightingDefaults } from '../config/volumetricLightingSettings.js'
+import { VOLUMETRIC_SECTION_SPLASH } from '../config/sectionSplashSettings.js'
 import NextNavLink from './NextNavLink'
+import SectionSplashOverlay from './SectionSplashOverlay.jsx'
 
 function createTexture3D(cfg) {
   const {
@@ -796,16 +798,7 @@ export default function VolumetricLightingSection() {
       className={settings.layout.sectionClassName}
       style={{ touchAction: settings.layout.touchAction }}
     >
-      {!sceneReady && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
-          <div className="flex flex-col items-center gap-5 text-white/90">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white/90" />
-            <div className="text-xs font-medium uppercase tracking-[0.25em] text-white/70">
-              Loading
-            </div>
-          </div>
-        </div>
-      )}
+      <SectionSplashOverlay splash={VOLUMETRIC_SECTION_SPLASH} visible={!sceneReady} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
         <button
           type="button"

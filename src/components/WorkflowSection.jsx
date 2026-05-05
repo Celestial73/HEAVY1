@@ -36,6 +36,8 @@ import {
   WORKFLOW_VOLUMETRIC_SETTINGS,
 } from '../config/processSectionSettings.js'
 import { isWorkflowMobileProfile } from '../utils/workflowMobileProfile.js'
+import { WORKFLOW_SECTION_SPLASH } from '../config/sectionSplashSettings.js'
+import SectionSplashOverlay from './SectionSplashOverlay.jsx'
 
 function createTexture3D(cfg) {
   const data = new Uint8Array(cfg.size * cfg.size * cfg.size)
@@ -836,16 +838,7 @@ export default function WorkflowSection() {
         className="absolute inset-0 z-0"
         style={{ touchAction: 'none' }}
       />
-      {!sceneReady && (
-        <div className="absolute inset-0 z-60 flex items-center justify-center bg-black">
-          <div className="flex flex-col items-center gap-5 text-white/90">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white/90" />
-            <div className="text-xs font-medium uppercase tracking-[0.25em] text-white/70">
-              Loading
-            </div>
-          </div>
-        </div>
-      )}
+      <SectionSplashOverlay splash={WORKFLOW_SECTION_SPLASH} visible={!sceneReady} />
       <ProcessSectionTextOverlay
         items={(processDefaults.textOverlays ?? []).map((entry) => ({
           ...entry,

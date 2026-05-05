@@ -27,10 +27,10 @@ export const COMPARISON_SECTION_SETTINGS = {
     sectionId: 'comparison',
     sectionClassName: 'relative h-svh w-full overflow-hidden bg-black',
     containerClassName:
-      'flex h-full w-full flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16 lg:flex-row lg:items-stretch lg:gap-14 lg:px-16 lg:py-20',
+      'flex h-full w-full flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16 md:flex-row md:items-stretch md:gap-14 md:px-16 md:py-20',
     /** Текстовый блок: 50% высоты на мобиле / 65% ширины на десктопе. `h-full` — колонка на всю высоту слота; параграфы растягиваются внутри через `paragraphsContainerClassName`. */
     textBlockClassName:
-      'flex h-full min-h-0 min-w-0 flex-[50_1_0] flex-col gap-6 lg:flex-[65_1_0]',
+      'flex h-full min-h-0 min-w-0 flex-[50_1_0] flex-col gap-6 md:flex-[65_1_0]',
     /**
      * Слот карточки: 50% высоты на мобиле / 35% ширины на десктопе.
      * Колонка из самой карточки и кнопки Next.
@@ -38,7 +38,7 @@ export const COMPARISON_SECTION_SETTINGS = {
      * `flex-col` — кнопка располагается ПОД карточкой.
      */
     cardSlotClassName:
-      'flex min-h-0 min-w-0 flex-[50_1_0] flex-col items-stretch gap-4 lg:flex-[35_1_0]',
+      'flex min-h-0 min-w-0 flex-[50_1_0] flex-col items-stretch gap-4 md:flex-[35_1_0]',
     /** Обёртка вокруг ComparisonCard внутри cardSlot — забирает всё свободное место по высоте. */
     cardFrameClassName: 'min-h-0 min-w-0 w-full flex-1',
     /** Слот CTA-кнопки под карточкой: справа, фиксированная высота (shrink-0). */

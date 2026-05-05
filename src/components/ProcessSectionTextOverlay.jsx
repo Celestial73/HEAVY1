@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 const QUARTILE_YP = [0, 25, 50, 75, 100]
+const QUARTILE_XP = [0, 25, 50, 75, 100]
 
 function mergeTextOverlayItem(base, user) {
   if (!user || typeof user !== 'object') return { ...base }
@@ -28,30 +29,62 @@ function inferYOriginFromPercent(yPercent) {
   return 'center'
 }
 
+/** Авто: к какой точке блока привязать линию xPercent (квартильная сетка). */
+function inferXOriginFromPercent(xPercent) {
+  let nearest = QUARTILE_XP[0]
+  let best = Math.abs(xPercent - nearest)
+  for (const q of QUARTILE_XP) {
+    const d = Math.abs(xPercent - q)
+    if (d < best) {
+      best = d
+      nearest = q
+    }
+  }
+  if (nearest <= 25) return 'left'
+  if (nearest >= 75) return 'right'
+  return 'center'
+}
+
 /**
- * Режим «полоса по Y + лево/право». Возвращает null — использовать placement/corner.
+ * Режим позиционирования по процентам: xPercent/yPercent + origin.
+ * Возвращает null — использовать placement/corner.
  */
 function resolveBandLayout(config) {
   const hasY =
     config.yPercent != null &&
     config.yPercent !== '' &&
     Number.isFinite(Number(config.yPercent))
+  const hasXPercent =
+    config.xPercent != null &&
+    config.xPercent !== '' &&
+    Number.isFinite(Number(config.xPercent))
   const hasX = config.xSide === 'left' || config.xSide === 'right'
 
-  if (hasY || hasX) {
+  if (hasY || hasX || hasXPercent) {
     const yPercent = hasY ? Math.min(100, Math.max(0, Number(config.yPercent))) : 50
-    const xSide = hasX ? config.xSide : 'left'
+    const xPercent = hasXPercent
+      ? Math.min(100, Math.max(0, Number(config.xPercent)))
+      : hasX
+        ? config.xSide === 'right'
+          ? 100
+          : 0
+        : 0
     let { yOrigin } = config
     if (yOrigin !== 'top' && yOrigin !== 'center' && yOrigin !== 'bottom') {
       yOrigin = inferYOriginFromPercent(yPercent)
     }
-    return { yPercent, xSide, yOrigin }
+    let { xOrigin } = config
+    if (xOrigin !== 'left' && xOrigin !== 'center' && xOrigin !== 'right') {
+      xOrigin = inferXOriginFromPercent(xPercent)
+    }
+    return { yPercent, xPercent, xOrigin, yOrigin }
   }
 
   if (config.corner === 'center-left') {
     return {
       yPercent: 50,
-      xSide: 'left',
+      xPercent: 0,
+      xOrigin: 'left',
       yOrigin:
         config.yOrigin === 'top' || config.yOrigin === 'center' || config.yOrigin === 'bottom'
           ? config.yOrigin
@@ -61,7 +94,8 @@ function resolveBandLayout(config) {
   if (config.corner === 'center-right') {
     return {
       yPercent: 50,
-      xSide: 'right',
+      xPercent: 100,
+      xOrigin: 'right',
       yOrigin:
         config.yOrigin === 'top' || config.yOrigin === 'center' || config.yOrigin === 'bottom'
           ? config.yOrigin
@@ -73,20 +107,22 @@ function resolveBandLayout(config) {
 
 function bandLayoutStyle(band, insetPx) {
   const inset = typeof insetPx === 'number' ? insetPx : 24
-  const { yPercent, xSide, yOrigin } = band
+  const { yPercent, xPercent, xOrigin, yOrigin } = band
+  const boundedX = Math.min(100, Math.max(0, xPercent))
   let translateY = '0'
   if (yOrigin === 'center') translateY = '-50%'
   else if (yOrigin === 'bottom') translateY = '-100%'
+  let translateX = '0'
+  if (xOrigin === 'center') translateX = '-50%'
+  else if (xOrigin === 'right') translateX = '-100%'
 
   return {
     position: 'absolute',
     boxSizing: 'border-box',
-    left: inset,
-    right: inset,
+    left: `${boundedX}%`,
     top: `${yPercent}%`,
-    transform: `translateY(${translateY})`,
-    display: 'flex',
-    justifyContent: xSide === 'right' ? 'flex-end' : 'flex-start',
+    transform: `translate(${translateX}, ${translateY})`,
+    maxWidth: `calc(100vw - ${inset * 2 + 8}px)`,
   }
 }
 
@@ -130,7 +166,7 @@ function placementWrapperStyle(placement, corner, insetPx, textAlign) {
   return style
 }
 
-function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
+function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTransitions }) {
   const ref = useRef(null)
   const config = useMemo(
     () => mergeTextOverlayItem(itemDefaults ?? {}, item ?? {}),
@@ -145,6 +181,7 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
     fontWeight,
     color,
     lineHeight,
+    lineHeightPx,
     letterSpacing,
     placement,
     corner,
@@ -170,13 +207,13 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
     fontSize: typeof fontSizePx === 'number' ? `${fontSizePx}px` : fontSizePx,
     fontWeight,
     color,
-    lineHeight,
+    lineHeight: lineHeightPx != null ? `${lineHeightPx}px` : lineHeight,
     letterSpacing,
     textAlign,
     maxWidth:
       maxWidthPx != null
-        ? `min(${maxWidthPx}px, calc(100% - ${insetForWidth * 2 + 8}px))`
-        : `calc(100% - ${insetForWidth * 2 + 8}px)`,
+        ? `min(${maxWidthPx}px, calc(100vw - ${insetForWidth * 2 + 8}px))`
+        : `calc(100vw - ${insetForWidth * 2 + 8}px)`,
     whiteSpace: 'pre-line',
     textShadow: '0 1px 12px rgba(0,0,0,0.55)',
   }
@@ -185,6 +222,14 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
     if (!enabled || !text || !sceneReady) return undefined
     const el = ref.current
     if (!el) return undefined
+
+    if (fadeTransitions === false) {
+      el.style.transition = 'none'
+      el.style.opacity = '1'
+      return () => {
+        el.style.transition = 'none'
+      }
+    }
 
     const showMs = Math.max(0, (showAfterSec ?? 0) * 1000)
     const fadeIn = Math.max(0.05, fadeInSec ?? 0.5)
@@ -213,7 +258,7 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
       el.style.transition = 'none'
       el.style.opacity = '0'
     }
-  }, [enabled, text, sceneReady, showAfterSec, fadeInSec, hideAfterSec, fadeOutSec])
+  }, [enabled, text, sceneReady, showAfterSec, fadeInSec, hideAfterSec, fadeOutSec, fadeTransitions])
 
   if (!enabled || !text) return null
 
@@ -230,7 +275,12 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady }) {
  * Несколько текстовых оверлеев над секцией Process.
  * `sceneReady` — canvas смонтирован и WebGPU инициализирован.
  */
-export default function ProcessSectionTextOverlay({ items, itemDefaults, sceneReady }) {
+export default function ProcessSectionTextOverlay({
+  items,
+  itemDefaults,
+  sceneReady,
+  fadeTransitions = true,
+}) {
   const list = Array.isArray(items) ? items : []
 
   return (
@@ -244,6 +294,7 @@ export default function ProcessSectionTextOverlay({ items, itemDefaults, sceneRe
           item={item}
           itemDefaults={itemDefaults}
           sceneReady={sceneReady}
+          fadeTransitions={fadeTransitions}
         />
       ))}
     </div>

@@ -736,7 +736,8 @@ export default function ProcessSection() {
       const bottomEdgeY = minYFrame - halfCubeHFrame
       const margin = introCfg?.startBelowMargin ?? 1.2
 
-      if (introCfg?.enabled !== false && cubeCount > 0) {
+      const introFlyEnabled = introCfg?.enabled !== false && introCfg?.flyEnabled !== false
+      if (introFlyEnabled && cubeCount > 0) {
         const flyOrder = introCfg?.flyOrder === 'bottom-first' ? 'bottom-first' : 'top-first'
         const order =
           flyOrder === 'bottom-first'
@@ -769,6 +770,10 @@ export default function ProcessSection() {
         chainPhysicsEnabled = false
         if (chainLine) chainLine.visible = false
       } else {
+        for (const cube of cubes) {
+          cube.position.set(0, cube.userData.restY, 0)
+          cube.userData.velocity.set(0, 0, 0)
+        }
         introPhase = 'done'
         chainPhysicsEnabled = true
         if (chainLine) chainLine.visible = true
@@ -1376,6 +1381,7 @@ export default function ProcessSection() {
         items={settings.textOverlays ?? defaults.textOverlays}
         itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}
         sceneReady={sceneReady}
+        fadeTransitions={settings.fadeTransitions ?? defaults.fadeTransitions ?? true}
       />
     </section>
   )

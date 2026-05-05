@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu'
 
+const PROCESS_TEXT_HIDE_AFTER_SEC = 18
+
 /**
  * Шаблон одного текстового оверлея: каждый элемент `PROCESS_SECTION_SETTINGS.textOverlays`
  * поверх этого объекта делается shallow-merge (можно задать только `text` и тайминги).
@@ -19,6 +21,11 @@ export const PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS = {
    * тогда `placement` / `corner` не используются.
    */
   yPercent: null,
+  /**
+   * Полоса по ширине секции, 0 = левый край, 100 = правый.
+   * Удобные значения: 0, 25, 50, 75, 100.
+   */
+  xPercent: null,
   /** `left` | `right` — к какому горизонтальному краю прижать блок (с отступом `insetPx`). */
   xSide: null,
   /**
@@ -26,6 +33,11 @@ export const PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS = {
    * `null` — по `yPercent` подбирается автоматически (0/25 → верх блока, 50 → центр, 75/100 → низ).
    */
   yOrigin: null,
+  /**
+   * Какую точку текста привязать к линии `xPercent`: `left` | `center` | `right`.
+   * `null` — авто по ближайшей четверти (0/25 → left, 50 → center, 75/100 → right).
+   */
+  xOrigin: null,
   /** `corner` — угол + `insetPx`; `center` — по центру кадра (если не задан режим yPercent/xSide). */
   placement: 'corner',
   /** `top-left` | `top-right` | `bottom-left` | `bottom-right` | устар. `center-left` / `center-right`. */
@@ -39,7 +51,7 @@ export const PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS = {
   showAfterSec: 1.2,
   fadeInSec: 0.65,
   /** Секунды после готовности сцены — старт fade-out (должно быть > show + fade-in). */
-  hideAfterSec: 14,
+  hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
   fadeOutSec: 0.75,
 }
 
@@ -69,6 +81,8 @@ export const PROCESS_SECTION_SETTINGS = {
    */
   introTrain: {
     enabled: true,
+    /** Выключатель вылета: false — плашки сразу в rest-позициях (без стартовой анимации). */
+    flyEnabled: true,
     /**
      * Доп. зазор ниже нижнего края кадра: верх первой в порядке подлёта стартует за экраном.
      */
@@ -93,21 +107,23 @@ export const PROCESS_SECTION_SETTINGS = {
    * Тайминги от момента готовности сцены (canvas в DOM после `renderer.init`).
    * Опционально `id` (строка) — стабильный ключ для React.
    */
+  /** Глобальный выключатель fade-анимаций для всех текстов оверлея. */
+  fadeTransitions: true,
   textOverlays: [
     {
       id: 'hint-drag',
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
-      fontSizePx: 40,
+      fontSizePx: 25,
       text: 'Когда появляется вещь,',
-      yPercent: 10,
-      xSide: 'left',
+      yPercent: 5,
+      xPercent: 3,
       yOrigin: 'center',
       maxWidthPx: 340,
       textAlign: 'left',
-      showAfterSec: 1,
+      showAfterSec: 3,
       fadeInSec: 0.65,
-      hideAfterSec: 14,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,
     },
     {
@@ -116,45 +132,146 @@ export const PROCESS_SECTION_SETTINGS = {
       fontWeight: '400',
       fontSizePx: 60,
       text: 'МЫ',
-      yPercent: 25,
-      xSide: 'left',
+      yPercent: 16,
+      xPercent: 7,
       yOrigin: 'center',
       maxWidthPx: 340,
       textAlign: 'left',
       showAfterSec: 4,
       fadeInSec: 0.65,
-      hideAfterSec: 14,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,
     },
     {
       id: 'hint-drag',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
-      fontSizePx: 60,
+      fontSizePx: 45,
       text: 'Как \n её \n утяжелить.',
-      yPercent: 25,
-      xSide: 'right',
+      yPercent: 20.5,
+      xPercent: 97,
       yOrigin: 'center',
       maxWidthPx: 340,
       textAlign: 'right',
       showAfterSec: 4.5,
       fadeInSec: 0.65,
-      hideAfterSec: 14,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-scroll',
-      text: 'Мы думаем, как её утяжелить.',
-      fontSizePx: 15,
-      yPercent: 50,
-      xSide: 'right',
+      id: 'hint-drag',
+      fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontStyle: 'italic',
+      fontSizePx: 40,
+      text: 'п\nо\nс\nл\nе',
+      /** Межстрочный интервал для многострочного текста: px имеет приоритет над lineHeight. */
+      lineHeightPx: 28,
+      yPercent: 38.5, 
+      xPercent: 15,
       yOrigin: 'center',
-      maxWidthPx: 260,
+      maxWidthPx: 340,
+      textAlign: 'center',
+      showAfterSec: 7,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 40,
+      text: 'МЕТАЛЛ',
+      yPercent: 38.5,
+      xPercent: 100,
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'center',
+      showAfterSec: 8.5,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 30,
+      text: 'в подмосковном лесу.',
+      yPercent: 50,
+      xSide: 'left',
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'center',
+      showAfterSec: 9,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 30,
+      text: 'металл',
+      yPercent: 59,
+      xPercent: 2,
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'left',
+      showAfterSec: 11.2,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 140,
+      text: ',',
+      yPercent: 58,
+      xPercent:90,
+      yOrigin: 'center',
+      maxWidthPx: 340,
       textAlign: 'right',
-      showAfterSec: 1,
-      fadeInSec: 0.5,
-      hideAfterSec: 20,
-      fadeOutSec: 0.65,
+      showAfterSec: 12.7,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 50,
+      text: 'Вещь',
+      yPercent: 80,
+      xPercent: 2,
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'right',
+      showAfterSec: 14.2,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
+    },
+    {
+      id: 'hint-drag',
+      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
+      fontWeight: '400',
+      fontSizePx: 200,
+      text: '.',
+      yPercent: 75,
+      xPercent: 91,
+      yOrigin: 'center',
+      maxWidthPx: 340,
+      textAlign: 'right',
+      showAfterSec: 15,
+      fadeInSec: 0.65,
+      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
+      fadeOutSec: 0.75,
     },
   ],
 

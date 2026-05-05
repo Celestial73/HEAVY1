@@ -234,7 +234,10 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTra
     const showMs = Math.max(0, (showAfterSec ?? 0) * 1000)
     const fadeIn = Math.max(0.05, fadeInSec ?? 0.5)
     const fadeOut = Math.max(0.05, fadeOutSec ?? 0.5)
-    const rawHideMs = (hideAfterSec ?? 6) * 1000
+    /** `null` / не число — не гасить (удобно для страниц вроде Workflow). */
+    const shouldHide =
+      hideAfterSec != null && typeof hideAfterSec === 'number' && Number.isFinite(hideAfterSec)
+    const rawHideMs = shouldHide ? hideAfterSec * 1000 : 0
     const minHideMs = showMs + fadeIn * 1000 + 50
     const hideMs = Math.max(rawHideMs, minHideMs)
 
@@ -247,14 +250,16 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTra
       el.style.opacity = '1'
     }, showMs)
 
-    const tHide = window.setTimeout(() => {
-      el.style.transition = `opacity ${fadeOut}s ease-in`
-      el.style.opacity = '0'
-    }, hideMs)
+    const tHide = shouldHide
+      ? window.setTimeout(() => {
+          el.style.transition = `opacity ${fadeOut}s ease-in`
+          el.style.opacity = '0'
+        }, hideMs)
+      : null
 
     return () => {
       window.clearTimeout(tShow)
-      window.clearTimeout(tHide)
+      if (tHide != null) window.clearTimeout(tHide)
       el.style.transition = 'none'
       el.style.opacity = '0'
     }
@@ -285,7 +290,7 @@ export default function ProcessSectionTextOverlay({
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-50 overflow-hidden"
       aria-hidden="true"
     >
       {list.map((item, index) => (

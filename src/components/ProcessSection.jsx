@@ -24,7 +24,7 @@ function mergeProcessLabel(defaultLabel, cubeLabel) {
     ...(a.object3d ?? {}),
     ...(b.object3d ?? {}),
   }
-  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.imageUrl) {
+  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.glbUrl || b.object3d?.imageUrl) {
     delete object3d.primitive
   }
   return {
@@ -1188,7 +1188,11 @@ export default function ProcessSection() {
 
   return (
     <section id="process" className="relative h-svh w-full bg-black">
-      <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 z-0"
+        style={{ touchAction: 'none' }}
+      />
       <ProcessSectionTextOverlay
         items={settings.textOverlays ?? defaults.textOverlays}
         itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}

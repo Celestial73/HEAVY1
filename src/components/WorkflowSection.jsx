@@ -19,7 +19,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
-import { appendFbxPlateDeco, appendPlateImageDeco, createPlateFigureObjects } from '../utils/plateFigureHandlers.js'
+import {
+  appendFbxPlateDeco,
+  appendGltfPlateDeco,
+  appendPlateImageDeco,
+  createPlateFigureObjects,
+} from '../utils/plateFigureHandlers.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
 import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
 import {
@@ -155,7 +160,7 @@ function mergeProcessLabel(defaultLabel, cubeLabel) {
     ...(a.object3d ?? {}),
     ...(b.object3d ?? {}),
   }
-  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.imageUrl) {
+  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.glbUrl || b.object3d?.imageUrl) {
     delete object3d.primitive
   }
   return {
@@ -545,6 +550,7 @@ export default function WorkflowSection() {
       let introPhase = 'done'
       let introElapsed = 0
       const plateFbxJobs = []
+      const plateGltfJobs = []
       const plateImageJobs = []
       const figureScaleCtx = { plateScale: PLATE_SCALE, cubeDepth: CUBE_DEPTH, three: THREE }
       for (let i = 0; i < cubeCount; i += 1) {
@@ -597,6 +603,9 @@ export default function WorkflowSection() {
         if (od?.fbxUrl && od.enabled !== false) {
           plateFbxJobs.push({ tile, object3d: od })
         }
+        if ((od?.gltfUrl ?? od?.glbUrl) && od.enabled !== false) {
+          plateGltfJobs.push({ tile, object3d: od })
+        }
         if (od?.imageUrl && od.enabled !== false) {
           plateImageJobs.push({ tile, object3d: od })
         }
@@ -608,6 +617,19 @@ export default function WorkflowSection() {
           await appendFbxPlateDeco(job.tile, job.object3d, figureScaleCtx)
         } catch (err) {
           console.error('WorkflowSection: plate FBX failed', job.object3d?.fbxUrl, err)
+        }
+      }
+
+      for (const job of plateGltfJobs) {
+        if (cancelled) break
+        try {
+          await appendGltfPlateDeco(job.tile, job.object3d, figureScaleCtx)
+        } catch (err) {
+          console.error(
+            'WorkflowSection: plate glTF failed',
+            job.object3d?.gltfUrl ?? job.object3d?.glbUrl,
+            err,
+          )
         }
       }
 
@@ -809,9 +831,13 @@ export default function WorkflowSection() {
 
   return (
     <section id="workflow" className="relative h-svh w-full bg-black">
-      <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 z-0"
+        style={{ touchAction: 'none' }}
+      />
       {!sceneReady && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
+        <div className="absolute inset-0 z-60 flex items-center justify-center bg-black">
           <div className="flex flex-col items-center gap-5 text-white/90">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white/90" />
             <div className="text-xs font-medium uppercase tracking-[0.25em] text-white/70">
@@ -821,7 +847,10 @@ export default function WorkflowSection() {
         </div>
       )}
       <ProcessSectionTextOverlay
-        items={processDefaults.textOverlays ?? []}
+        items={(processDefaults.textOverlays ?? []).map((entry) => ({
+          ...entry,
+          hideAfterSec: null,
+        }))}
         itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}
         sceneReady={sceneReady}
         fadeTransitions={processDefaults.fadeTransitions ?? true}

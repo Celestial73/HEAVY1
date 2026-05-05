@@ -457,7 +457,7 @@ export const PROCESS_SECTION_SETTINGS = {
    * Плоский текст + опционально подзаголовок (меньший кегль) и 3D-декор на лице.
    * `label.object3d`: `primitive` (встроенные имена) или `handler` (кастом через `registerPlateFigure` в
    * `src/utils/plateFigureHandlers.js`); несколько фигур — `figures: [...]` и опционально `defaults`.
-   * `imageUrl` — картинка на плашке (WorkflowSection, `public/`). `fbxUrl` — FBX. `gltfUrl` пока не используется.
+   * `imageUrl` — картинка; `fbxUrl` — FBX; `gltfUrl` / `glbUrl` — glTF/GLB (WorkflowSection, файлы в `public/`).
    */
   defaultLabel: {
     enabled: true,
@@ -496,8 +496,7 @@ export const PROCESS_SECTION_SETTINGS = {
       roughness: 0.38,
       /** FBX в `public/` (WorkflowSection). Масштаб: наибольший размер bbox = `size` (или `fbxFitSize`). */
       // fbxUrl: '/models/Arbol.fbx',
-      /** Пример GLB (пока не загружается) */
-      // gltfUrl: '/models/deco.glb',
+      // gltfUrl: '/models/LionKeystone.glb',
     },
   },
 
@@ -548,7 +547,13 @@ export const PROCESS_SECTION_SETTINGS = {
     {
       label: {
         text: '3. Плавим',
-        object3d: { enabled: true, primitive: 'torusKnot', size: 0.324, position: [0, -0.612, 0.173] },
+        object3d: {
+          enabled: true,
+          gltfUrl: '/models/LionKeystone.glb',
+          size: 1,
+          position: [0, -0.612, 0.173],
+          rotation: [0, 0, 0],
+        },
       },
       // Алюминий: светло-серый, средняя шероховатость (анод / шлифовка).
       procedural: { preset: 'aluminum', seed: 71004 },

@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 /** @typedef {{ plateMat: import('three').MeshStandardMaterial, mergedLabel: object, spec: object, plateScale: number, cubeDepth: number, THREE: typeof THREE }} PlateFigureContext */
 
@@ -130,6 +131,65 @@ export async function appendFbxPlateDeco(tile, spec, scaleCtx) {
   const maxDim = Math.max(sz.x, sz.y, sz.z, 1e-6)
   const { plateScale } = scaleCtx
   const target = spec.fbxFitSize ?? spec.size ?? 0.44 * plateScale
+  wrap.scale.setScalar(target / maxDim)
+  applyFigureTransform(wrap, spec, scaleCtx.plateScale, scaleCtx.cubeDepth)
+  wrap.renderOrder = spec.renderOrder ?? 2
+  tile.add(wrap)
+  return wrap
+}
+
+const gltfTemplatePromises = new Map()
+
+function resolveGltfModelUrl(spec) {
+  const raw = spec?.gltfUrl ?? spec?.glbUrl
+  if (!raw) return null
+  return resolvePlateModelUrl(raw)
+}
+
+function loadPlateGltfTemplate(absoluteUrl) {
+  if (!gltfTemplatePromises.has(absoluteUrl)) {
+    const loader = new GLTFLoader()
+    gltfTemplatePromises.set(
+      absoluteUrl,
+      loader
+        .loadAsync(absoluteUrl)
+        .then((gltf) => gltf.scene)
+        .catch((err) => {
+          gltfTemplatePromises.delete(absoluteUrl)
+          throw err
+        }),
+    )
+  }
+  return gltfTemplatePromises.get(absoluteUrl)
+}
+
+/**
+ * glTF / GLB на плашку (как FBX: центр bbox, масштаб по `size` / `gltfFitSize`).
+ */
+export async function appendGltfPlateDeco(tile, spec, scaleCtx) {
+  const absoluteUrl = resolveGltfModelUrl(spec)
+  if (!tile || !absoluteUrl || spec.enabled === false) return null
+  const T = scaleCtx.three ?? THREE
+  const template = await loadPlateGltfTemplate(absoluteUrl)
+  const root = template.clone(true)
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = spec.castShadow !== false
+      o.receiveShadow = spec.receiveShadow !== false
+    }
+  })
+  const wrap = new T.Group()
+  wrap.add(root)
+  wrap.updateMatrixWorld(true)
+  const box = new T.Box3().setFromObject(wrap)
+  const center = box.getCenter(new T.Vector3())
+  root.position.sub(center)
+  wrap.updateMatrixWorld(true)
+  const boxSized = new T.Box3().setFromObject(wrap)
+  const sz = boxSized.getSize(new T.Vector3())
+  const maxDim = Math.max(sz.x, sz.y, sz.z, 1e-6)
+  const { plateScale } = scaleCtx
+  const target = spec.gltfFitSize ?? spec.size ?? 0.44 * plateScale
   wrap.scale.setScalar(target / maxDim)
   applyFigureTransform(wrap, spec, scaleCtx.plateScale, scaleCtx.cubeDepth)
   wrap.renderOrder = spec.renderOrder ?? 2
@@ -270,7 +330,7 @@ function applyFigureTransform(obj, spec, plateScale, cubeDepth) {
  * - несколько: `{ enabled, figures: [ { handler, ... }, { primitive: 'box', ... } ], defaults?: { size } }`
  * - только `fbxUrl` — синхронных мешей нет; загрузка через `appendFbxPlateDeco` в сцене
  * - только `imageUrl` — плоскость с текстурой; `appendPlateImageDeco` в сцене
- * - `gltfUrl` — пока не обрабатывается
+ * - только `gltfUrl` или `glbUrl` — `appendGltfPlateDeco`
  *
  * @param {import('three').MeshStandardMaterial} plateMat
  * @param {object} mergedLabel
@@ -279,7 +339,7 @@ function applyFigureTransform(obj, spec, plateScale, cubeDepth) {
  */
 export function createPlateFigureObjects(plateMat, mergedLabel, scaleCtx) {
   const od = mergedLabel?.object3d
-  if (!od || od.enabled === false || od.gltfUrl) return []
+  if (!od || od.enabled === false) return []
 
   const onlyFbx =
     Boolean(od.fbxUrl) &&
@@ -288,6 +348,14 @@ export function createPlateFigureObjects(plateMat, mergedLabel, scaleCtx) {
     !od.figure &&
     !(Array.isArray(od.figures) && od.figures.length > 0)
   if (onlyFbx) return []
+
+  const onlyGltf =
+    Boolean(od.gltfUrl ?? od.glbUrl) &&
+    !od.primitive &&
+    !od.handler &&
+    !od.figure &&
+    !(Array.isArray(od.figures) && od.figures.length > 0)
+  if (onlyGltf) return []
 
   const onlyImage =
     Boolean(od.imageUrl) &&

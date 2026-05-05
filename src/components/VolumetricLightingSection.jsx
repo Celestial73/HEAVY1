@@ -340,7 +340,6 @@ export default function VolumetricLightingSection() {
       renderer.shadowMap.type = S.renderer.shadowMapType
 
       container.appendChild(renderer.domElement)
-      if (!cancelled) setSceneReady(true)
 
       const scene = new THREE.Scene()
       camera = new THREE.PerspectiveCamera(
@@ -765,6 +764,8 @@ export default function VolumetricLightingSection() {
         controls.update()
         renderPipeline.render()
       })
+
+      if (!cancelled) setSceneReady(true)
 
       resizeObserver = new ResizeObserver(onWindowResize)
       resizeObserver.observe(container)

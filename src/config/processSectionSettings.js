@@ -124,7 +124,7 @@ export const WORKFLOW_VOLUMETRIC_SETTINGS = {
  */
 export const WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES = {
   renderer: {
-    antialias: false,
+    antialias: true,
     maxPixelRatio: 1,
     /** Нельзя отключать: иначе у Point/Spot не создаётся shadowNode, volumetric обнуляется (см. VolumetricLightingModel.direct). */
     shadowMapEnabled: true,
@@ -136,7 +136,7 @@ export const WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES = {
   volume: {
     /** Больше, чем на десктопе: при малых шагах march и сильном blur слабый smokeAmount даёт нулевую картинку. */
     rayMarchSteps: 8,
-    smokeAmount: 0.085,
+    smokeAmount: 0,
     grainSamples: [
       { scale: 0.1, timeScale: 1 },
       { scale: 0.05, timeScale: 1 },

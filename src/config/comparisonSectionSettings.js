@@ -173,6 +173,9 @@ export const COMPARISON_SECTION_SETTINGS = {
    * `icon` — ключ из реестра иконок в компоненте: 'feather' | 'kettlebell' (если не задан `imageSrc`).
    * `imageSrc` — путь к картинке в `public/` (один и тот же файл можно использовать в обеих половинах).
    * `imageClassName` — опционально: переопределить `objectsImageClassName` для конкретного объекта.
+   * `sizeClassByScreen` — адаптивные размеры по брейкпоинтам:
+   *   { base, sm, md, lg, xl }, где значения — tailwind-пары вида 'h-20 w-20'.
+   *   Если задано, имеет приоритет над `sizeClassName`.
    * `mass` — основной регулятор «веса» (чем больше, тем сложнее бросить, тише отскок).
    * `physicsOverrides` — точечно переопределяет вычисленные параметры (см. physics.derive).
    */
@@ -184,7 +187,12 @@ export const COMPARISON_SECTION_SETTINGS = {
       imageSrc: COMPARISON_OBJECT_IMAGE_SRC,
       mass: 0.4,
       ariaLabel: 'Перетащите объект «До»',
-      sizeClassName: 'h-32 w-32 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
+      sizeClassByScreen: {
+        base: 'h-20 w-20',
+        sm: 'h-24 w-24',
+        md: 'h-28 w-28',
+        lg: 'h-32 w-32',
+      },
       /** Стартовая позиция центра объекта в долях родителя (0..1). */
       initial: { leftFrac: 0.33, topFrac: 0.33 },
       physicsOverrides: {},
@@ -195,7 +203,12 @@ export const COMPARISON_SECTION_SETTINGS = {
       imageSrc: COMPARISON_OBJECT_IMAGE_SRC,
       mass: 40,
       ariaLabel: 'Перетащите объект «После»',
-      sizeClassName: 'h-32 w-32 sm:h-28 sm:w-28 lg:h-32 lg:w-32',
+      sizeClassByScreen: {
+        base: 'h-20 w-20',
+        sm: 'h-24 w-24',
+        md: 'h-28 w-28',
+        lg: 'h-32 w-32',
+      },
       initial: { leftFrac: 0.67, topFrac: 0.67 },
       physicsOverrides: {},
     },

@@ -63,6 +63,20 @@ function encodeUriPreservingSlashes(path) {
     .join('/')
 }
 
+function resolveObjectSizeClassName(obj) {
+  if (obj?.sizeClassByScreen && typeof obj.sizeClassByScreen === 'object') {
+    const s = obj.sizeClassByScreen
+    const classes = []
+    if (s.base) classes.push(s.base)
+    if (s.sm) classes.push(`sm:${s.sm}`)
+    if (s.md) classes.push(`md:${s.md}`)
+    if (s.lg) classes.push(`lg:${s.lg}`)
+    if (s.xl) classes.push(`xl:${s.xl}`)
+    if (classes.length > 0) return classes.join(' ')
+  }
+  return obj?.sizeClassName ?? 'h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32'
+}
+
 function deriveParams(mass, physicsConfig, overrides = {}) {
   const m = Math.max(0.1, mass)
   const d = physicsConfig.derive
@@ -367,7 +381,7 @@ function ComparisonHalf({
               side={half.side}
               initialLeftFrac={obj.initial.leftFrac}
               initialTopFrac={obj.initial.topFrac}
-              sizeClassName={obj.sizeClassName}
+              sizeClassName={resolveObjectSizeClassName(obj)}
               mass={obj.mass}
               physicsConfig={physics}
               physicsOverrides={obj.physicsOverrides}

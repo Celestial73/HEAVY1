@@ -19,6 +19,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
+import { appendFbxPlateDeco, appendPlateImageDeco, createPlateFigureObjects } from '../utils/plateFigureHandlers.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
 import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
 import {
@@ -150,13 +151,17 @@ function mergeMaterialOptions(defaultsObj, userObj = {}) {
 function mergeProcessLabel(defaultLabel, cubeLabel) {
   const a = defaultLabel ?? {}
   const b = cubeLabel ?? {}
+  const object3d = {
+    ...(a.object3d ?? {}),
+    ...(b.object3d ?? {}),
+  }
+  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.imageUrl) {
+    delete object3d.primitive
+  }
   return {
     ...a,
     ...b,
-    object3d: {
-      ...(a.object3d ?? {}),
-      ...(b.object3d ?? {}),
-    },
+    object3d,
   }
 }
 
@@ -343,41 +348,6 @@ function createFlatLabelPlane(plateMat, mergedLabel) {
   return mesh
 }
 
-function createPlateObject3d(plateMat, mergedLabel) {
-  const od = mergedLabel.object3d
-  if (!od || od.enabled === false || od.gltfUrl) return null
-  const primitive = od.primitive ?? 'sphere'
-  const size = od.size ?? 0.44 * PLATE_SCALE
-  let geom
-  switch (primitive) {
-    case 'box': geom = new THREE.BoxGeometry(size, size, size * 0.75); break
-    case 'torusKnot': geom = new THREE.TorusKnotGeometry(size * 0.32, size * 0.11, 48, 12); break
-    case 'icosahedron': geom = new THREE.IcosahedronGeometry(size * 0.5, 0); break
-    case 'cone': geom = new THREE.ConeGeometry(size * 0.45, size * 0.88, 32); break
-    case 'cylinder': geom = new THREE.CylinderGeometry(size * 0.4, size * 0.4, size * 0.85, 32); break
-    case 'torus': geom = new THREE.TorusGeometry(size * 0.38, size * 0.1, 24, 32); break
-    case 'sphere':
-    default: geom = new THREE.SphereGeometry(size * 0.5, 32, 24)
-  }
-  const mat = plateMat.clone()
-  mat.map = null
-  mat.normalMap = null
-  mat.roughnessMap = null
-  mat.metalnessMap = null
-  mat.normalScale = new THREE.Vector2(1, 1)
-  if (od.color !== undefined) mat.color.setHex(od.color)
-  else mat.color.multiplyScalar(1.04)
-  mat.metalness = od.metalness ?? 0.85
-  mat.roughness = od.roughness ?? 0.4
-  const mesh = new THREE.Mesh(geom, mat)
-  const p = od.position ?? [0, -0.78 * PLATE_SCALE, CUBE_DEPTH * 0.5 + 0.028 * PLATE_SCALE]
-  const r = od.rotation ?? [0, 0, 0]
-  mesh.position.set(p[0], p[1], p[2])
-  mesh.rotation.set(r[0], r[1], r[2])
-  mesh.renderOrder = 2
-  return mesh
-}
-
 function buildPlateWithBezel(plateMat, mergedLabel, opts = {}) {
   const lowDetail = opts.lowDetail === true
   const plateSeg = lowDetail ? 3 : PLATE_BEVEL_SEGMENTS
@@ -413,8 +383,13 @@ function buildPlateWithBezel(plateMat, mergedLabel, opts = {}) {
   }
   const labelMesh = createFlatLabelPlane(plateMat, mergedLabel)
   if (labelMesh) tile.add(labelMesh)
-  const deco3d = createPlateObject3d(plateMat, mergedLabel)
-  if (deco3d) tile.add(deco3d)
+  for (const deco of createPlateFigureObjects(plateMat, mergedLabel, {
+    plateScale: PLATE_SCALE,
+    cubeDepth: CUBE_DEPTH,
+    three: THREE,
+  })) {
+    tile.add(deco)
+  }
   return tile
 }
 
@@ -569,6 +544,9 @@ export default function WorkflowSection() {
       const introCfg = processDefaults.introTrain ?? {}
       let introPhase = 'done'
       let introElapsed = 0
+      const plateFbxJobs = []
+      const plateImageJobs = []
+      const figureScaleCtx = { plateScale: PLATE_SCALE, cubeDepth: CUBE_DEPTH, three: THREE }
       for (let i = 0; i < cubeCount; i += 1) {
         const spec = cubeSpecs[i] ?? {}
         const matOpts = mergeMaterialOptions(processDefaults.defaultMaterial, spec.material ?? {})
@@ -615,6 +593,31 @@ export default function WorkflowSection() {
         }
         scene.add(tile)
         cubes.push(tile)
+        const od = mergedLabel?.object3d
+        if (od?.fbxUrl && od.enabled !== false) {
+          plateFbxJobs.push({ tile, object3d: od })
+        }
+        if (od?.imageUrl && od.enabled !== false) {
+          plateImageJobs.push({ tile, object3d: od })
+        }
+      }
+
+      for (const job of plateFbxJobs) {
+        if (cancelled) break
+        try {
+          await appendFbxPlateDeco(job.tile, job.object3d, figureScaleCtx)
+        } catch (err) {
+          console.error('WorkflowSection: plate FBX failed', job.object3d?.fbxUrl, err)
+        }
+      }
+
+      for (const job of plateImageJobs) {
+        if (cancelled) break
+        try {
+          await appendPlateImageDeco(job.tile, job.object3d, figureScaleCtx)
+        } catch (err) {
+          console.error('WorkflowSection: plate image failed', job.object3d?.imageUrl, err)
+        }
       }
 
       const halfFovTanFrame = Math.tan(camera.fov * 0.5 * (Math.PI / 180))

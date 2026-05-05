@@ -20,13 +20,17 @@ function mergeMaterialOptions(defaultsObj, userObj = {}) {
 function mergeProcessLabel(defaultLabel, cubeLabel) {
   const a = defaultLabel ?? {}
   const b = cubeLabel ?? {}
+  const object3d = {
+    ...(a.object3d ?? {}),
+    ...(b.object3d ?? {}),
+  }
+  if (b.object3d?.fbxUrl || b.object3d?.gltfUrl || b.object3d?.imageUrl) {
+    delete object3d.primitive
+  }
   return {
     ...a,
     ...b,
-    object3d: {
-      ...(a.object3d ?? {}),
-      ...(b.object3d ?? {}),
-    },
+    object3d,
   }
 }
 

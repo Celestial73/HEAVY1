@@ -455,7 +455,9 @@ export const PROCESS_SECTION_SETTINGS = {
 
   /**
    * Плоский текст + опционально подзаголовок (меньший кегль) и 3D-декор на лице.
-   * `label.object3d`: примитив (`primitive`) или позже `gltfUrl` (подгрузка асинхронно).
+   * `label.object3d`: `primitive` (встроенные имена) или `handler` (кастом через `registerPlateFigure` в
+   * `src/utils/plateFigureHandlers.js`); несколько фигур — `figures: [...]` и опционально `defaults`.
+   * `imageUrl` — картинка на плашке (WorkflowSection, `public/`). `fbxUrl` — FBX. `gltfUrl` пока не используется.
    */
   defaultLabel: {
     enabled: true,
@@ -480,19 +482,22 @@ export const PROCESS_SECTION_SETTINGS = {
     zOffset: 0.002,
     pixelsPerUnit: 180,
     maxCanvasSide: 2048,
-    /** Декор под текстом: примитив или `gltfUrl` (не одновременно с primitive в одной плашке) */
+    /**
+     * Декор под текстом: `primitive`, `handler` / `figure`, или `figures: [{ handler, position, ... }]`.
+     */
     object3d: {
       enabled: false,
       primitive: 'sphere',
-      size: 0.336,
+      size: 1,
       /** Локальный Z ≈ половина глубины плашки + вынесение к камере (под текущий PLATE_SCALE). */
       position: [0, -0.624, 0.173],
       rotation: [0, 0, 0],
       metalness: 0.86,
       roughness: 0.38,
-      /** Пример внешней модели: положите .glb в `public/` и укажите путь */
+      /** FBX в `public/` (WorkflowSection). Масштаб: наибольший размер bbox = `size` (или `fbxFitSize`). */
+      // fbxUrl: '/models/Arbol.fbx',
+      /** Пример GLB (пока не загружается) */
       // gltfUrl: '/models/deco.glb',
-      // gltfScale: 1,
     },
   },
 
@@ -504,7 +509,12 @@ export const PROCESS_SECTION_SETTINGS = {
     {
       label: {
         text: '1. Думаем',
-        object3d: { enabled: true, primitive: 'icosahedron', size: 0.324, position: [0, -0.612, 0.173] },
+        object3d: {
+          enabled: true,
+          imageUrl: '/images/think_guy.jpg',
+          size: 1.8,
+          position: [0, -0.612, 0.173],
+        },
       },
       // Сдвинуто к алюминию: холодный светло-серый металл, как у 3-й плашки.
       procedural: { preset: 'aluminum', seed: 90421 },
@@ -517,8 +527,14 @@ export const PROCESS_SECTION_SETTINGS = {
     },
     {
       label: {
-          text: '2. Собираем ',
-        object3d: { enabled: true, primitive: 'box', size: 0.3, position: [0, -0.612, 0.173] },
+        text: '2. Собираем ',
+        object3d: {
+          enabled: true,
+          fbxUrl: '/models/Arbol.fbx',
+          size: 1.2,
+          position: [0, -0.612, 0.173],
+          rotation: [0, 0, 0],
+        },
       },
       // Сдвинуто к алюминию: сохраняем лёгкий холодный оттенок.
       procedural: { preset: 'aluminum', seed: 48291 },

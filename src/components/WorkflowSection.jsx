@@ -478,7 +478,6 @@ export default function WorkflowSection() {
       renderer.shadowMap.enabled = V.renderer.shadowMapEnabled
       renderer.shadowMap.type = V.renderer.shadowMapType
       container.appendChild(renderer.domElement)
-      if (!cancelled) setSceneReady(true)
 
       scene = new THREE.Scene()
       camera = new THREE.PerspectiveCamera(
@@ -803,6 +802,8 @@ export default function WorkflowSection() {
         controls.update()
         renderPipeline.render()
       })
+
+      if (!cancelled) setSceneReady(true)
 
       resizeObserver = new ResizeObserver(onResize)
       resizeObserver.observe(container)

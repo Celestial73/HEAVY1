@@ -1,6 +1,116 @@
-import * as THREE from 'three/webgpu'
-
 const PROCESS_TEXT_HIDE_AFTER_SEC = 18
+
+/**
+ * Свет для `WorkflowSection` (фиксированные источники без орбиты).
+ * Вынесен сюда, чтобы управлять положением/силой из одного конфига.
+ */
+export const WORKFLOW_LIGHT_SETTINGS = {
+  pointLights: [
+    {
+      color: 0xffffff,
+      intensity: 2,
+      distance: 100,
+      castShadow: true,
+      initialPosition: [2.5, 6, 2],
+    },
+    {
+      color: 0xffffff,
+      intensity: 2,
+      distance: 100,
+      castShadow: true,
+      initialPosition: [-2, 1,2],
+    },
+    {
+      color: 0xffffff,
+      intensity: 2,
+      distance: 100,
+      castShadow: true,
+      initialPosition: [1, 0, 1],
+    },
+    {
+      color: 0xffffff,
+      intensity: 2,
+      distance: 100,
+      castShadow: true,
+      initialPosition: [-1, -4, 1],
+    },
+    {
+      color: 0xffffff,
+      intensity: 2,
+      distance: 100,
+      castShadow: true,
+      initialPosition: [1, -6, 3],
+    },
+  ],
+  spotLight: {
+    color: 0xffffff,
+    intensity: 0,
+    angle: Math.PI / 6,
+    penumbra: 1,
+    decay: 1,
+    distance: 20,
+    castShadow: true,
+    restPosition: [5, 3, 5],
+    target: [-2, 3, 0],
+  },
+  spotColorMap: {
+    size: 256,
+    gradient: [
+      { offset: 0, color: '#ffffff' },
+      { offset: 0.45, color: '#ffffff' },
+      { offset: 1, color: '#ffffff' },
+    ],
+  },
+}
+
+/**
+ * Настройки volumetric-части `WorkflowSection`.
+ */
+export const WORKFLOW_VOLUMETRIC_SETTINGS = {
+  layerIndex: 10,
+  renderer: {
+    antialias: true,
+    maxPixelRatio: 2,
+    toneMapping: 'neutral',
+    toneMappingExposure: 2,
+    shadowMapEnabled: true,
+    shadowMapType: 'pcf',
+  },
+  noiseTexture3D: {
+    size: 128,
+    perlinScale: 10,
+    repeatFactor: 5,
+    format: 'red',
+    minFilter: 'linear',
+    magFilter: 'linear',
+    wrapS: 'repeat',
+    wrapT: 'repeat',
+    unpackAlignment: 1,
+  },
+  volume: {
+    rayMarchSteps: 12,
+    smokeAmount: 0.02,
+    timeScroll: { x: 1, y: 0, z: 0.3 },
+    grainSamples: [
+      { scale: 0.1, timeScale: 1 },
+      { scale: 0.05, timeScale: 1 },
+      { scale: 0.02, timeScale: 2 },
+    ],
+  },
+  volumetricBox: {
+    width: 20,
+    height: 20,
+    depth: 20,
+    positionY: -1,
+    receiveShadow: true,
+  },
+  postProcessing: {
+    volumetricPassDepthBuffer: false,
+    volumetricResolutionScale: 0.25,
+    denoiseStrength: 0.6,
+    volumetricLightingIntensity: 1,
+  },
+}
 
 /**
  * Шаблон одного текстового оверлея: каждый элемент `PROCESS_SECTION_SETTINGS.textOverlays`
@@ -62,7 +172,6 @@ export const PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS = {
  * `material` — параметры THREE.MeshStandardMaterial; неуказанные поля
  * подставляются из `defaultMaterial`.
  * `procedural` — опционально: пресет шума, `enabled`, `seed`, `uvRepeat`.
- * `volumetric` — объёмный свет (отдельный слой + посткомпозит), см. preset ниже.
  */
 export const PROCESS_SECTION_SETTINGS = {
   /**
@@ -72,7 +181,7 @@ export const PROCESS_SECTION_SETTINGS = {
     /** Размытие геометрии комнаты перед выпечкой (радианы). */
     roomBlurSigma: 0.04,
     /** Сила `scene.environmentIntensity` (нет точечных/направленных источников). */
-    intensity: 1,
+    intensity: 0.02,
   },
 
   /**
@@ -111,7 +220,7 @@ export const PROCESS_SECTION_SETTINGS = {
   fadeTransitions: true,
   textOverlays: [
     {
-      id: 'hint-drag',
+      id: 'hint-01',
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 25,
@@ -127,7 +236,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-02',
       fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 60,
@@ -143,7 +252,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-03',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 45,
@@ -159,7 +268,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-04',
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontStyle: 'italic',
@@ -178,7 +287,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-05',
       fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 40,
@@ -194,7 +303,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-06',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 30,
@@ -210,7 +319,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-07',
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 30,
@@ -226,7 +335,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-08',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 140,
@@ -242,7 +351,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-09',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 50,
@@ -258,7 +367,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fadeOutSec: 0.75,
     },
     {
-      id: 'hint-drag',
+      id: 'hint-10',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 200,
@@ -276,77 +385,12 @@ export const PROCESS_SECTION_SETTINGS = {
   ],
 
   /**
-   * Объёмный свет (как в VolumetricLightingSection): большой raymarch-бокс + spot,
-   * композит поверх основного прохода. Не освещает металл напрямую — только слой тумана.
-   */
-  volumetric: {
-    enabled: true,
-    layerIndex: 11,
-    noiseTexture3D: {
-      size: 96,
-      perlinScale: 10,
-      repeatFactor: 5,
-      format: THREE.RedFormat,
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      wrapS: THREE.RepeatWrapping,
-      wrapT: THREE.RepeatWrapping,
-      unpackAlignment: 1,
-    },
-    volume: {
-      rayMarchSteps: 14,
-      smokeAmount: 1.35,
-      timeScroll: { x: 0.8, y: 0, z: 0.25 },
-      grainSamples: [
-        { scale: 0.08, timeScale: 1 },
-        { scale: 0.04, timeScale: 1 },
-        { scale: 0.018, timeScale: 2 },
-      ],
-    },
-    /** Коробка объёма вокруг колонки плашек (широкий конус spot её заполняет). */
-    volumetricBox: {
-      width: 42,
-      height: 32,
-      depth: 28,
-      positionY: 0,
-      receiveShadow: false,
-    },
-    spotLight: {
-      color: 0xffffff,
-      intensity: 140,
-      angle: Math.PI / 2.2,
-      penumbra: 0.55,
-      decay: 2,
-      distance: 0,
-      castShadow: false,
-      position: [14, 14, 22],
-      target: [0, 0, 0],
-    },
-    /** Медленное вращение spot по горизонтали (рад/с, радиус, высота). */
-    spotOrbit: {
-      speed: 0.12,
-      radius: 16,
-      height: 14,
-    },
-    postProcessing: {
-      volumetricPassName: 'Process volumetric',
-      volumetricResolutionScale: 0.35,
-      volumetricPassDepthBuffer: false,
-      denoiseStrength: 0.55,
-      volumetricLightingIntensity: 0.95,
-    },
-    rendererToneMapping: {
-      toneMappingExposure: 1.35,
-    },
-  },
-
-  /**
    * Процедурные карты: map, roughnessMap, metalnessMap (локальные дефекты), normalMap.
    * У куба можно задать свой `cubes[n].procedural`; иначе — preset по индексу.
    * `enabled: false` — отключить процедурные карты (только сплошной material).
    */
   procedural: {
-    enabled: true,
+    enabled: false,
     presetsByIndex: ['copper', 'lead', 'aluminum', 'bronze'],
     uvRepeat: [2, 2],
   },
@@ -417,13 +461,13 @@ export const PROCESS_SECTION_SETTINGS = {
         text: '1. Думаем',
         object3d: { enabled: true, primitive: 'icosahedron', size: 0.324, position: [0, -0.612, 0.173] },
       },
-      // Медь: тёплый красноватый отлив, относительно гладкая полированная поверхность.
-      procedural: { preset: 'copper', seed: 90421 },
+      // Сдвинуто к алюминию: холодный светло-серый металл, как у 3-й плашки.
+      procedural: { preset: 'aluminum', seed: 90421 },
       material: {
-        color: 0xb87333,
-        roughness: 0.46,
-        metalness: 0.82,
-        envMapIntensity: 0.48,
+        color: 0xd2d7dc,
+        roughness: 0.54,
+        metalness: 0.76,
+        envMapIntensity: 0.5,
       },
     },
     {
@@ -431,13 +475,13 @@ export const PROCESS_SECTION_SETTINGS = {
           text: '2. Собираем ',
         object3d: { enabled: true, primitive: 'box', size: 0.3, position: [0, -0.612, 0.173] },
       },
-      // Свинец: холодный сине-серый, очень матовый «тяжёлый» металл.
-      procedural: { preset: 'lead', seed: 48291 },
+      // Сдвинуто к алюминию: сохраняем лёгкий холодный оттенок.
+      procedural: { preset: 'aluminum', seed: 48291 },
       material: {
-        color: 0x6b6f78,
-        roughness: 0.93,
-        metalness: 0.48,
-        envMapIntensity: 0.42,
+        color: 0xcfd5db,
+        roughness: 0.54,
+        metalness: 0.76,
+        envMapIntensity: 0.5,
       },
     },
     {
@@ -459,13 +503,13 @@ export const PROCESS_SECTION_SETTINGS = {
         text: '4. Утяжеляем ',
         object3d: { enabled: true, primitive: 'cylinder', size: 0.324, position: [0, -0.612, 0.173] },
       },
-      // Бронза: золотисто-коричневый сплав, чуть шероховатая литая поверхность.
-      procedural: { preset: 'bronze', seed: 33657 },
+      // Сдвинуто к алюминию: светлый нейтральный металл.
+      procedural: { preset: 'aluminum', seed: 33657 },
       material: {
-        color: 0x8d6e46,
-        roughness: 0.58,
-        metalness: 0.7,
-        envMapIntensity: 0.46,
+        color: 0xd9dee3,
+        roughness: 0.54,
+        metalness: 0.76,
+        envMapIntensity: 0.5,
       },
     },
   ],

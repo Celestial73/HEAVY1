@@ -1,70 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
 import * as THREE from 'three/webgpu'
-import {
-  Fn,
-  mix,
-  mul,
-  pass,
-  screenCoordinate,
-  screenUV,
-  texture3D,
-  time,
-  uniform,
-  vec3,
-  add,
-} from 'three/tsl'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'
-import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
-import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
 import {
   PROCESS_SECTION_SETTINGS as defaults,
   PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
 } from '../config/processSectionSettings.js'
-
-function createTexture3D(cfg) {
-  const {
-    size,
-    perlinScale,
-    repeatFactor,
-    format,
-    minFilter,
-    magFilter,
-    wrapS,
-    wrapT,
-    unpackAlignment,
-  } = cfg
-
-  let i = 0
-  const data = new Uint8Array(size * size * size)
-  const perlin = new ImprovedNoise()
-
-  for (let z = 0; z < size; z += 1) {
-    for (let y = 0; y < size; y += 1) {
-      for (let x = 0; x < size; x += 1) {
-        const nx = (x / size) * repeatFactor
-        const ny = (y / size) * repeatFactor
-        const nz = (z / size) * repeatFactor
-        const noiseValue = perlin.noise(nx * perlinScale, ny * perlinScale, nz * perlinScale)
-        data[i] = 128 + 128 * noiseValue
-        i += 1
-      }
-    }
-  }
-
-  const texture = new THREE.Data3DTexture(data, size, size, size)
-  texture.format = format
-  texture.minFilter = minFilter
-  texture.magFilter = magFilter
-  texture.wrapS = wrapS
-  texture.wrapT = wrapT
-  texture.unpackAlignment = unpackAlignment
-  texture.needsUpdate = true
-  return texture
-}
 
 function mergeMaterialOptions(defaultsObj, userObj = {}) {
   const out = { ...defaultsObj }
@@ -131,9 +74,10 @@ async function loadProcessLabelFonts(settings) {
   const pxSub = Math.round(pxMain * 0.42)
 
   const loads = []
+  const sampleText = 'Думаем Собираем Плавим Утяжеляем ABCDEFG'
   for (const fam of families) {
-    loads.push(document.fonts.load(`${mainW} ${pxMain}px '${fam}'`).catch(() => {}))
-    loads.push(document.fonts.load(`${subW} ${pxSub}px '${fam}'`).catch(() => {}))
+    loads.push(document.fonts.load(`${mainW} ${pxMain}px '${fam}'`, sampleText).catch(() => {}))
+    loads.push(document.fonts.load(`${subW} ${pxSub}px '${fam}'`, sampleText).catch(() => {}))
   }
   await Promise.all(loads)
 }
@@ -586,10 +530,6 @@ export default function ProcessSection() {
     let resizeObserver = null
     let cancelled = false
     let environmentTarget = null
-    let renderPipeline = null
-    let noiseTexture3D = null
-    let volumetricMesh = null
-    let volumetricSpot = null
 
     let scene = null
     let camera = null
@@ -605,8 +545,6 @@ export default function ProcessSection() {
     void (async () => {
       await loadProcessLabelFonts(settings)
       if (cancelled) return
-
-      const volSettings = settings.volumetric ?? defaults.volumetric
 
       scene = new THREE.Scene()
       scene.background = null
@@ -691,9 +629,6 @@ export default function ProcessSection() {
         opacity: 0.92,
         depthWrite: false,
         depthTest: true,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
       })
       chainLine = new THREE.LineSegments(chainGeom, chainMat)
       chainLine.renderOrder = 6
@@ -826,84 +761,6 @@ export default function ProcessSection() {
       scene.environment = environmentTarget.texture
       scene.environmentIntensity = environmentIntensity
       pmremGenerator.dispose()
-
-      const V = volSettings
-      if (V && V.enabled !== false) {
-        renderer.toneMapping = THREE.NeutralToneMapping
-        renderer.toneMappingExposure = V.rendererToneMapping?.toneMappingExposure ?? 1.35
-
-        noiseTexture3D = createTexture3D(V.noiseTexture3D)
-        const smokeAmount = uniform(V.volume.smokeAmount)
-        const ts = V.volume.timeScroll
-
-        const volumetricMaterial = new THREE.VolumeNodeMaterial()
-        volumetricMaterial.steps = V.volume.rayMarchSteps
-        volumetricMaterial.offsetNode = bayer16(screenCoordinate)
-        volumetricMaterial.scatteringNode = Fn(({ positionRay }) => {
-          const timeScaled = vec3(time.mul(ts.x), ts.y, time.mul(ts.z))
-          const samples = V.volume.grainSamples
-          const sampleGrain = (scale, timeScale = 1) =>
-            texture3D(
-              noiseTexture3D,
-              positionRay.add(timeScaled.mul(timeScale)).mul(scale).mod(1),
-              0,
-            ).r.add(0.5)
-
-          let density = sampleGrain(samples[0].scale, samples[0].timeScale)
-          for (let g = 1; g < samples.length; g += 1) {
-            density = density.mul(sampleGrain(samples[g].scale, samples[g].timeScale))
-          }
-          return mix(1, density, smokeAmount)
-        })
-
-        const box = V.volumetricBox
-        volumetricMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(box.width, box.height, box.depth),
-          volumetricMaterial,
-        )
-        volumetricMesh.receiveShadow = box.receiveShadow ?? false
-        volumetricMesh.position.y = box.positionY ?? 0
-        volumetricMesh.layers.disableAll()
-        volumetricMesh.layers.enable(V.layerIndex)
-        scene.add(volumetricMesh)
-
-        const sl = V.spotLight
-        volumetricSpot = new THREE.SpotLight(sl.color, sl.intensity)
-        volumetricSpot.position.set(...sl.position)
-        volumetricSpot.angle = sl.angle
-        volumetricSpot.penumbra = sl.penumbra
-        volumetricSpot.decay = sl.decay
-        volumetricSpot.distance = sl.distance
-        volumetricSpot.castShadow = sl.castShadow ?? false
-        volumetricSpot.layers.disableAll()
-        volumetricSpot.layers.enable(V.layerIndex)
-        volumetricSpot.target.position.set(...sl.target)
-        scene.add(volumetricSpot)
-        scene.add(volumetricSpot.target)
-
-        renderPipeline = new THREE.RenderPipeline(renderer)
-        const volumetricLightingIntensity = uniform(V.postProcessing.volumetricLightingIntensity)
-        const volumetricLayer = new THREE.Layers()
-        volumetricLayer.disableAll()
-        volumetricLayer.enable(V.layerIndex)
-
-        const scenePass = pass(scene, camera)
-        const sceneDepth = scenePass.getTextureNode('depth')
-        volumetricMaterial.depthNode = sceneDepth.sample(screenUV)
-
-        const pp = V.postProcessing
-        const volumetricPass = pass(scene, camera, { depthBuffer: pp.volumetricPassDepthBuffer })
-        volumetricPass.name = pp.volumetricPassName
-        volumetricPass.setLayers(volumetricLayer)
-        volumetricPass.setResolutionScale(pp.volumetricResolutionScale)
-
-        const denoiseStrength = uniform(pp.denoiseStrength)
-        const blurredVolumetricPass = gaussianBlur(volumetricPass, denoiseStrength)
-        renderPipeline.outputNode = add(
-          scenePass,
-          mul(blurredVolumetricPass, volumetricLightingIntensity),
-        )
-      }
 
       container.appendChild(renderer.domElement)
       renderer.domElement.style.touchAction = 'none'
@@ -1188,28 +1045,7 @@ export default function ProcessSection() {
             chainGeom.attributes.position.needsUpdate = true
           }
 
-          if (volSettings?.enabled !== false && volumetricSpot && volSettings.spotOrbit) {
-            const o = volSettings.spotOrbit
-            const sl = volSettings.spotLight
-            if (o.speed !== 0) {
-              const t = clock.elapsedTime
-              volumetricSpot.position.set(
-                Math.cos(t * o.speed) * o.radius,
-                o.height,
-                Math.sin(t * o.speed) * o.radius,
-              )
-              volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
-            } else {
-              volumetricSpot.position.set(...sl.position)
-              volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
-            }
-          }
-
-          if (renderPipeline) {
-            renderPipeline.render()
-          } else {
-            renderer.render(scene, camera)
-          }
+          renderer.render(scene, camera)
           return
         }
 
@@ -1314,28 +1150,7 @@ export default function ProcessSection() {
           chainGeom.attributes.position.needsUpdate = true
         }
 
-        if (volSettings?.enabled !== false && volumetricSpot && volSettings.spotOrbit) {
-          const o = volSettings.spotOrbit
-          const sl = volSettings.spotLight
-          if (o.speed !== 0) {
-            const t = clock.elapsedTime
-            volumetricSpot.position.set(
-              Math.cos(t * o.speed) * o.radius,
-              o.height,
-              Math.sin(t * o.speed) * o.radius,
-            )
-            volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
-          } else {
-            volumetricSpot.position.set(...sl.position)
-            volumetricSpot.lookAt(sl.target[0], sl.target[1], sl.target[2])
-          }
-        }
-
-        if (renderPipeline) {
-          renderPipeline.render()
-        } else {
-          renderer.render(scene, camera)
-        }
+        renderer.render(scene, camera)
       })
 
       resizeObserver = new ResizeObserver(onResize)
@@ -1352,13 +1167,6 @@ export default function ProcessSection() {
       resizeObserver?.disconnect()
       if (renderer) {
         renderer.setAnimationLoop(null)
-        renderPipeline?.dispose()
-        noiseTexture3D?.dispose()
-        if (volumetricMesh) {
-          volumetricMesh.geometry?.dispose()
-          volumetricMesh.material?.dispose()
-        }
-        volumetricSpot?.dispose()
         if (renderer.domElement.parentNode === container) {
           container.removeChild(renderer.domElement)
         }

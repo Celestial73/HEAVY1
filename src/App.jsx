@@ -3,6 +3,7 @@ import ComparisonSection from './components/ComparisonSection'
 import ProcessSection from './components/ProcessSection'
 import ScrollToTop from './components/ScrollToTop'
 import VolumetricLightingSection from './components/VolumetricLightingSection'
+import WorkflowSection from './components/WorkflowSection'
 
 function App() {
   const location = useLocation()
@@ -13,6 +14,7 @@ function App() {
       <div key={location.pathname} className="animate-fade-page">
         <Routes location={location}>
           <Route path="/" element={<VolumetricLightingSection />} />
+          <Route path="/workflow" element={<WorkflowSection />} />
           <Route path="/comparison" element={<ComparisonSection />} />
           <Route path="/process" element={<ProcessSection />} />
         </Routes>

@@ -233,7 +233,13 @@ export const COMPARISON_SECTION_SETTINGS = {
    * Глобальные:
    *   minSpeed   — порог остановки (px/sec).
    *   maxStepDt  — кап dt в секундах, защита от больших шагов (свёрнутая вкладка).
+   *   rectInsetPx — отступ центра объекта от внешних границ своей половины.
+   *                 0 = можно вплотную к внешним стенкам/углам (визуально),
+   *                 r(радиус) = объект всегда полностью внутри.
    *   throwVelocityScale — общий множитель импульса при броске (поверх throwScale).
+   *   triangleInsetPx — отступ центра объекта от диагонали в пикселях.
+   *                     0 = можно доходить до диагонали (и углов у диагонали),
+   *                     большие значения сужают область по обе стороны.
    */
   physics: {
     derive: {
@@ -251,6 +257,8 @@ export const COMPARISON_SECTION_SETTINGS = {
     },
     minSpeed: 6,
     maxStepDt: 0.05,
+    rectInsetPx: 0,
+    triangleInsetPx: 0,
     /** Множитель импульса от жеста: pxPerSec = gestureVelocityPxPerMs * 1000 * throwVelocityScale * throwScale. */
     throwVelocityScale: 1.4,
   },

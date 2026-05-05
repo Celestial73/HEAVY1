@@ -143,10 +143,12 @@ function DraggableObject({
   }
 
   const clampToRect = (s, w, h, r, withReflect) => {
-    const minX = -initialLeftFrac * w + r
-    const maxX = (1 - initialLeftFrac) * w - r
-    const minY = -initialTopFrac * h + r
-    const maxY = (1 - initialTopFrac) * h - r
+    const insetPx = physicsConfig.rectInsetPx ?? r
+    const effectiveInset = Math.max(0, Math.min(r, insetPx))
+    const minX = -initialLeftFrac * w + effectiveInset
+    const maxX = (1 - initialLeftFrac) * w - effectiveInset
+    const minY = -initialTopFrac * h + effectiveInset
+    const maxY = (1 - initialTopFrac) * h - effectiveInset
 
     if (s.x < minX) {
       s.x = minX
@@ -165,7 +167,9 @@ function DraggableObject({
   }
 
   const clampToTriangle = (s, w, h, r, withReflect) => {
-    const margin = r * Math.sqrt(1 / (w * w) + 1 / (h * h))
+    const insetPx = physicsConfig.triangleInsetPx ?? 0
+    const effectiveInset = Math.max(0, Math.min(r, insetPx))
+    const margin = effectiveInset * Math.sqrt(1 / (w * w) + 1 / (h * h))
     const sumLimit = side === 'upper-left' ? 1 - margin : 1 + margin
     const sum = initialLeftFrac + s.x / w + initialTopFrac + s.y / h
     const violates = side === 'upper-left' ? sum > sumLimit : sum < sumLimit

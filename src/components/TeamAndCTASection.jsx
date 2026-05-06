@@ -30,28 +30,62 @@ function CtaButton({ to, className, children }) {
   )
 }
 
-function TeamMemberCard({ member }) {
-  const { name, role, initials, imageUrl } = member
+function PortraitBlock({
+  portrait,
+  frameClassName,
+  frameHeightVh,
+  frameWidthVw,
+  frameMaxWidthPx,
+  frameAspectRatio,
+  frameMaxHeightVh,
+  alignSide,
+}) {
+  const { imageUrl, imageAlt, caption, captionClassName } = portrait
   const src = imageUrl ? resolvePublicAssetUrl(imageUrl) : null
-  const letters = (initials || name)
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 3)
-    .toUpperCase()
+  if (!src) return null
+
+  const h = typeof frameHeightVh === 'number' && Number.isFinite(frameHeightVh) ? frameHeightVh : 20
+  const w = typeof frameWidthVw === 'number' && Number.isFinite(frameWidthVw) ? frameWidthVw : 60
+  const maxPx =
+    typeof frameMaxWidthPx === 'number' && Number.isFinite(frameMaxWidthPx) && frameMaxWidthPx > 0
+      ? frameMaxWidthPx
+      : null
+  const figureWidth = maxPx != null ? `min(${w}vw, ${maxPx}px)` : `${w}vw`
+  const useAspect = typeof frameAspectRatio === 'string' && frameAspectRatio.trim().length > 0
+  const maxHvh =
+    typeof frameMaxHeightVh === 'number' && Number.isFinite(frameMaxHeightVh) ? frameMaxHeightVh : null
+
+  const frameStyle = useAspect
+    ? {
+        aspectRatio: frameAspectRatio.trim(),
+        width: '100%',
+        maxHeight: maxHvh != null ? `${maxHvh}vh` : undefined,
+      }
+    : { width: '100%', height: `${h}vh` }
+
+  const figureAlign =
+    alignSide === 'right' ? 'ml-auto items-end' : alignSide === 'left' ? 'mr-auto items-start' : 'mx-auto items-center'
+  const captionAlign =
+    alignSide === 'right' ? 'text-right' : alignSide === 'left' ? 'text-left' : 'text-center'
 
   return (
-    <article className="flex flex-col items-center text-center">
-      <div className="mb-4 flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-zinc-900/80 sm:h-32 sm:w-32">
-        {src ? (
-          <img src={src} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="font-brand text-2xl text-white/90 sm:text-3xl">{letters}</span>
-        )}
+    <figure
+      className={`flex max-w-full flex-col ${figureAlign}`}
+      style={{ width: figureWidth }}
+    >
+      <div className={frameClassName} style={frameStyle}>
+        <img
+          src={src}
+          alt={imageAlt ?? ''}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
-      <h3 className="text-base font-medium text-white sm:text-lg">{name}</h3>
-      <p className="mt-1 text-sm text-zinc-500">{role}</p>
-    </article>
+      {caption ? (
+        <figcaption className={`w-full ${captionAlign} ${captionClassName ?? ''}`}>{caption}</figcaption>
+      ) : null}
+    </figure>
   )
 }
 
@@ -66,49 +100,82 @@ export default function TeamAndCTASection() {
     return undefined
   }, [])
 
-  const { layout, intro, hero, team, teamGridClassName, cta, nav } = settings
+  const {
+    layout,
+    intro,
+    hero,
+    portraits,
+    portraitsStripClassName,
+    portraitFrameClassName,
+    portraitHeightVh,
+    portraitWidthVw,
+    portraitMaxWidthPx,
+    portraitAspectRatio,
+    portraitMaxHeightVh,
+    portraitAlternateSides,
+    footer,
+    nav,
+  } = settings
+
+  const portraitList = Array.isArray(portraits) ? portraits : []
 
   return (
-    <section id={layout.sectionId} className={layout.sectionClassName}>
+    <section id={layout.sectionId} className={`${layout.sectionClassName} overflow-x-hidden`}>
       <div className={layout.containerClassName}>
         <header
           className="animate-fade-up"
           style={{ animationDelay: `${intro.hero.delay}s` }}
         >
           <h1 className={hero.titleClassName}>{hero.title}</h1>
-          <p className={hero.subtitleClassName}>{hero.subtitle}</p>
+          {hero.subtitle ? (
+            <p className={hero.subtitleClassName}>{hero.subtitle}</p>
+          ) : null}
         </header>
 
         <div
-          className={`animate-fade-up ${teamGridClassName}`}
-          style={{ animationDelay: `${intro.teamGrid.delay}s` }}
+          className="animate-fade-up relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2"
+          style={{ animationDelay: `${intro.portraits.delay}s` }}
         >
-          {team.map((member, i) => (
-            <TeamMemberCard key={`${member.name}-${i}`} member={member} />
-          ))}
+          <div className={`${portraitsStripClassName} px-6 sm:px-10`}>
+            {portraitList.map((portrait, i) => {
+              const alternate = portraitAlternateSides !== false
+              const alignSide = alternate ? (i % 2 === 0 ? 'right' : 'left') : 'center'
+              return (
+                <PortraitBlock
+                  key={`${portrait.imageUrl}-${i}`}
+                  portrait={portrait}
+                  frameClassName={portraitFrameClassName}
+                  frameHeightVh={portraitHeightVh}
+                  frameWidthVw={portraitWidthVw}
+                  frameMaxWidthPx={portraitMaxWidthPx}
+                  frameAspectRatio={portraitAspectRatio}
+                  frameMaxHeightVh={portraitMaxHeightVh}
+                  alignSide={alignSide}
+                />
+              )
+            })}
+          </div>
         </div>
 
-        <div
-          className="animate-fade-up rounded-2xl border border-white/10 bg-zinc-950/50 px-8 py-10 sm:px-12 sm:py-12"
-          style={{ animationDelay: `${intro.ctaBlock.delay}s` }}
+        <footer
+          className="animate-fade-up mt-auto flex flex-col items-center gap-10 pt-4"
+          style={{ animationDelay: `${intro.footer.delay}s` }}
         >
-          <h2 className={cta.headlineClassName}>{cta.headline}</h2>
-          <p className={cta.bodyClassName}>{cta.body}</p>
-          <CtaButton to={cta.to} className={cta.buttonClassName}>
-            {cta.buttonText}
+          <CtaButton to={footer.to} className={footer.buttonClassName}>
+            {footer.buttonText}
           </CtaButton>
-        </div>
 
-        {nav?.back && (
-          <nav
-            className="animate-fade-up"
-            style={{ animationDelay: `${intro.nav.delay}s` }}
-          >
-            <Link to={nav.back.to} className={nav.back.className}>
-              {nav.back.label}
-            </Link>
-          </nav>
-        )}
+          {nav?.back ? (
+            <nav
+              className="animate-fade-up"
+              style={{ animationDelay: `${intro.nav.delay}s` }}
+            >
+              <Link to={nav.back.to} className={nav.back.className}>
+                {nav.back.label}
+              </Link>
+            </nav>
+          ) : null}
+        </footer>
       </div>
     </section>
   )

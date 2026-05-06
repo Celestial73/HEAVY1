@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as THREE from 'three/webgpu'
 import {
   Fn,
@@ -849,6 +850,14 @@ export default function WorkflowSection() {
         sceneReady={sceneReady}
         fadeTransitions={processDefaults.fadeTransitions ?? true}
       />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-55 flex justify-end px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
+        <Link
+          to="/team-and-cta"
+          className="pointer-events-auto inline-flex h-12 items-center rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
+        >
+          О команде
+        </Link>
+      </div>
     </section>
   )
 }

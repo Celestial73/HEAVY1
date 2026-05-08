@@ -74,7 +74,7 @@ export const WORKFLOW_LIGHT_SETTINGS = {
  * При `true` рендер на телефоне использует те же настройки качества, что и `WORKFLOW_VOLUMETRIC_SETTINGS`
  * (antialias, DPR, PCF и т.д.); `WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES` применяются только если volumetric на мобильном включён.
  */
-export const WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE = true
+export const WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE = false
 
 /**
  * Настройки volumetric-части `WorkflowSection`.

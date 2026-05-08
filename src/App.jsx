@@ -6,6 +6,7 @@ import TeamAndCTASection from './components/TeamAndCTASection'
 import ScrollToTop from './components/ScrollToTop'
 import VolumetricLightingSection from './components/VolumetricLightingSection'
 import { loadWorkflowSectionModule } from './utils/workflowSectionChunk'
+import VisitLogger from './components/VisitLogger.jsx'
 
 const WorkflowSection = lazy(loadWorkflowSectionModule)
 
@@ -14,6 +15,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
+      <VisitLogger />
       <ScrollToTop />
       <div key={location.pathname} className="animate-fade-page">
         <Routes location={location}>

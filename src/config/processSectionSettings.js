@@ -14,51 +14,73 @@ export const WORKFLOW_LIGHT_SETTINGS = {
   pointLights: [
     {
       color: 0xffffff,
-      intensity: 2,
+      intensity: 0.5,
       distance: 100,
       castShadow: true,
       initialPosition: [2.5, 6, 2],
     },
     {
       color: 0xffffff,
-      intensity: 2,
+      intensity: 0.5,
       distance: 100,
       castShadow: true,
       initialPosition: [-2, 1,2],
     },
     {
       color: 0xffffff,
-      intensity: 2,
+      intensity: 0.5,
       distance: 100,
       castShadow: true,
       initialPosition: [1, 0, 1],
     },
     {
       color: 0xffffff,
-      intensity: 2,
+      intensity: 0.5,
       distance: 100,
       castShadow: true,
       initialPosition: [-1, -4, 1],
     },
     {
       color: 0xffffff,
-      intensity: 2,
+      intensity: 0.5,
       distance: 100,
       castShadow: true,
       initialPosition: [1, -6, 3],
     },
   ],
-  spotLight: {
-    color: 0xffffff,
-    intensity: 0,
-    angle: Math.PI / 6,
-    penumbra: 1,
-    decay: 1,
-    distance: 20,
-    castShadow: true,
-    restPosition: [5, 3, 5],
-    target: [-2, 3, 0],
-  },
+  /**
+   * Прожекторы Workflow: стартуют с intensity 0, затем через `onAfterSec` (сек от старта рендера)
+   * нарастают до `intensity` за `fadeInSec` (0 — сразу полная яркость после задержки).
+   * Одна общая `spotColorMap` для всех.
+   */
+  spotLights: [
+    {
+      color: 0xffffff,
+      intensity: 3,
+      angle: Math.PI / 4,
+      penumbra: 1,
+      decay: 1,
+      distance: 20,
+      castShadow: true,
+      restPosition: [5, 6, 5],
+      target: [-2, 4, 0],
+      onAfterSec: 3,
+      fadeInSec: 2,
+    },
+    {
+      color: 0xffffff,
+      intensity: 3,
+      angle: Math.PI / 4,
+      penumbra: 1,
+      decay: 1,
+      distance: 20,
+      castShadow: true,
+      restPosition: [-4, -3, 3],
+      target: [1, -2, 0],
+      onAfterSec: 10,
+      fadeInSec: 3,
+    },
+  ],
   spotColorMap: {
     size: 256,
     gradient: [
@@ -68,6 +90,35 @@ export const WORKFLOW_LIGHT_SETTINGS = {
     ],
   },
 }
+
+/** Workflow: текстовые подсказки в центрированной колонке на широком экране (позиции как на «мобильной» ширине). */
+export const WORKFLOW_TEXT_OVERLAY_COLUMN_MAX_PX = 440
+
+/**
+ * Правки оверлея только для Workflow: удобный список «абзацев» (`id` = тот же, что в `textOverlays`).
+ * Сюда кладите только поля, которые нужно переопределить относительно базового элемента.
+ */
+export const WORKFLOW_TEXT_OVERLAY_PARAGRAPHS = [
+  { id: 'hint-01', xPercent: 50, xOrigin: 'center', maxWidthPx: 400 },
+  { id: 'hint-03', xPercent: 95, xOrigin: 'right' },
+  { id: 'hint-05', xPercent: 97, xOrigin: 'right' },
+  { id: 'hint-08', xPercent: 100, xOrigin: 'right' },
+  { id: 'hint-10', xPercent: 100, xOrigin: 'right' },
+]
+
+function buildWorkflowTextOverlayOverridesById(paragraphs) {
+  const out = {}
+  for (const row of paragraphs) {
+    if (!row || row.id == null || row.id === '') continue
+    const { id, ...patch } = row
+    out[id] = patch
+  }
+  return out
+}
+
+/** Внутреннее: карта для подмешивания в `WorkflowSection` (из `WORKFLOW_TEXT_OVERLAY_PARAGRAPHS`). */
+export const WORKFLOW_TEXT_OVERLAY_OVERRIDES_BY_ID =
+  buildWorkflowTextOverlayOverridesById(WORKFLOW_TEXT_OVERLAY_PARAGRAPHS)
 
 /**
  * На мобильном (`isWorkflowMobileProfile`) не строить volumetric pass — только обычный рендер сцены.
@@ -122,6 +173,14 @@ export const WORKFLOW_VOLUMETRIC_SETTINGS = {
     volumetricResolutionScale: 0.25,
     denoiseStrength: 0.6,
     volumetricLightingIntensity: 1,
+  },
+  /**
+   * OrbitControls в Workflow: лимиты зума (отдаление), чтобы не вынимать камеру за volumetric-бокс.
+   * Цель орбиты — начало координат, как у исходной сцены.
+   */
+  orbitControls: {
+    minDistance: 11,
+    maxDistance: 22,
   },
 }
 
@@ -268,13 +327,12 @@ export const PROCESS_SECTION_SETTINGS = {
       id: 'hint-01',
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
-      fontSizePx: 25,
+      fontSizePx: 22,
       text: 'Когда появляется вещь,',
       yPercent: 5,
-      xPercent: 3,
+      xPercent: 20,
       yOrigin: 'center',
-      maxWidthPx: 340,
-      textAlign: 'left',
+      textAlign: 'center',
       showAfterSec: 3,
       fadeInSec: 0.65,
       hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
@@ -300,10 +358,10 @@ export const PROCESS_SECTION_SETTINGS = {
       id: 'hint-03',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
-      fontSizePx: 45,
-      text: 'Как \n её \n утяжелить.',
+      fontSizePx: 40,
+      text: 'Как\nеё\nутяжелить.',
       yPercent: 20.5,
-      xPercent: 97,
+      xPercent: 95,
       yOrigin: 'center',
       maxWidthPx: 340,
       textAlign: 'right',
@@ -312,33 +370,16 @@ export const PROCESS_SECTION_SETTINGS = {
       hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,
     },
-    {
-      id: 'hint-04',
-      fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
-      fontWeight: '400',
-      fontStyle: 'italic',
-      fontSizePx: 40,
-      text: 'п\nо\nс\nл\nе',
-      /** Межстрочный интервал для многострочного текста: px имеет приоритет над lineHeight. */
-      lineHeightPx: 28,
-      yPercent: 38.5, 
-      xPercent: 15,
-      yOrigin: 'center',
-      maxWidthPx: 340,
-      textAlign: 'center',
-      showAfterSec: 7,
-      fadeInSec: 0.65,
-      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
-      fadeOutSec: 0.75,
-    },
+
     {
       id: 'hint-05',
       fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
-      fontSizePx: 40,
+      fontSizePx: 30,
+      color: '#d2d7dc',
       text: 'МЕТАЛЛ',
       yPercent: 38.5,
-      xPercent: 100,
+      xPercent: 96,
       yOrigin: 'center',
       maxWidthPx: 340,
       textAlign: 'center',
@@ -354,10 +395,11 @@ export const PROCESS_SECTION_SETTINGS = {
       fontSizePx: 30,
       text: 'в подмосковном лесу.',
       yPercent: 50,
+      xPercent: 5,
       xSide: 'left',
       yOrigin: 'center',
       maxWidthPx: 340,
-      textAlign: 'center',
+      textAlign: 'left',
       showAfterSec: 9,
       fadeInSec: 0.65,
       hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
@@ -368,7 +410,7 @@ export const PROCESS_SECTION_SETTINGS = {
       fontFamily: "'Museo Cyrl', 'Inter', system-ui, sans-serif",
       fontWeight: '400',
       fontSizePx: 30,
-      text: 'металл',
+      text: 'Металл',
       yPercent: 59,
       xPercent: 2,
       yOrigin: 'center',
@@ -379,22 +421,7 @@ export const PROCESS_SECTION_SETTINGS = {
       hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,
     },
-    {
-      id: 'hint-08',
-      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 140,
-      text: ',',
-      yPercent: 58,
-      xPercent:90,
-      yOrigin: 'center',
-      maxWidthPx: 340,
-      textAlign: 'right',
-      showAfterSec: 12.7,
-      fadeInSec: 0.65,
-      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
-      fadeOutSec: 0.75,
-    },
+    
     {
       id: 'hint-09',
       fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
@@ -407,22 +434,6 @@ export const PROCESS_SECTION_SETTINGS = {
       maxWidthPx: 340,
       textAlign: 'right',
       showAfterSec: 14.2,
-      fadeInSec: 0.65,
-      hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
-      fadeOutSec: 0.75,
-    },
-    {
-      id: 'hint-10',
-      fontFamily: "'Kalissa', 'Inter', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 200,
-      text: '.',
-      yPercent: 75,
-      xPercent: 91,
-      yOrigin: 'center',
-      maxWidthPx: 340,
-      textAlign: 'right',
-      showAfterSec: 15,
       fadeInSec: 0.65,
       hideAfterSec: PROCESS_TEXT_HIDE_AFTER_SEC,
       fadeOutSec: 0.75,

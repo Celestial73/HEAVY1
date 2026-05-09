@@ -117,12 +117,12 @@ export const COMPARISON_SECTION_SETTINGS = {
       {
         text: 'Реально тупо увеличиваем вес вещей',
         delay: 0.88,
-        className: 'font-museo-cyrl text-1xl text-white/75',
+        className: 'font-museo-cyrl text-xl lg:text-xl text-white/75',
       },
       {
         text: 'И всё.',
         delay: 1.06,
-        className: 'font-kalissa text-right text-7xl tracking-[0.2em] text-white/50',
+        className: 'font-kalissa text-right text-7xl lg:text-7xl tracking-[0.2em] text-white/50',
       },
     ],
   },

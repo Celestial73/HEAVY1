@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/**
+ * Явные пути для сканирования классов (Tailwind v4).
+ * Иначе утилиты только в строках `src/config/*.js` (например `captionClassName`)
+ * могут не попасть в CSS — брейкпоинты `md:*` / `lg:*` «не работают».
+ */
+@source "../index.html";
+@source "./**/*.{js,jsx,ts,tsx}";
+
 @font-face {
   font-family: 'Bebas Neue';
   src: url('/fonts/BebasNeue-Regular.ttf') format('truetype');

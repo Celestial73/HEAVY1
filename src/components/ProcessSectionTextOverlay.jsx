@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const QUARTILE_YP = [0, 25, 50, 75, 100]
 const QUARTILE_XP = [0, 25, 50, 75, 100]
@@ -105,7 +105,8 @@ function resolveBandLayout(config) {
   return null
 }
 
-function bandLayoutStyle(band, insetPx) {
+/** `viewport` — проценты и max-width от всего экрана; `container` — от узкой колонки (Workflow на десктопе). */
+function bandLayoutStyle(band, insetPx, widthBasis = 'viewport') {
   const inset = typeof insetPx === 'number' ? insetPx : 24
   const { yPercent, xPercent, xOrigin, yOrigin } = band
   const boundedX = Math.min(100, Math.max(0, xPercent))
@@ -115,6 +116,7 @@ function bandLayoutStyle(band, insetPx) {
   let translateX = '0'
   if (xOrigin === 'center') translateX = '-50%'
   else if (xOrigin === 'right') translateX = '-100%'
+  const fullW = widthBasis === 'container' ? '100%' : '100vw'
 
   return {
     position: 'absolute',
@@ -122,7 +124,7 @@ function bandLayoutStyle(band, insetPx) {
     left: `${boundedX}%`,
     top: `${yPercent}%`,
     transform: `translate(${translateX}, ${translateY})`,
-    maxWidth: `calc(100vw - ${inset * 2 + 8}px)`,
+    maxWidth: `calc(${fullW} - ${inset * 2 + 8}px)`,
   }
 }
 
@@ -166,8 +168,13 @@ function placementWrapperStyle(placement, corner, insetPx, textAlign) {
   return style
 }
 
-function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTransitions }) {
-  const ref = useRef(null)
+function ProcessSectionTextOverlayItem({
+  item,
+  itemDefaults,
+  sceneReady,
+  fadeTransitions,
+  overlayWidthBasis = 'viewport',
+}) {
   const config = useMemo(
     () => mergeTextOverlayItem(itemDefaults ?? {}, item ?? {}),
     [itemDefaults, item],
@@ -197,38 +204,27 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTra
   const band = useMemo(() => resolveBandLayout(config), [config])
 
   const wrapperStyle = useMemo(() => {
-    if (band) return bandLayoutStyle(band, insetPx)
+    if (band) return bandLayoutStyle(band, insetPx, overlayWidthBasis)
     return placementWrapperStyle(placement, corner, insetPx, textAlign)
-  }, [band, placement, corner, insetPx, textAlign])
+  }, [band, placement, corner, insetPx, textAlign, overlayWidthBasis])
 
-  const insetForWidth = typeof insetPx === 'number' ? insetPx : 24
-  const textBlockStyle = {
-    fontFamily,
-    fontSize: typeof fontSizePx === 'number' ? `${fontSizePx}px` : fontSizePx,
-    fontWeight,
-    color,
-    lineHeight: lineHeightPx != null ? `${lineHeightPx}px` : lineHeight,
-    letterSpacing,
-    textAlign,
-    maxWidth:
-      maxWidthPx != null
-        ? `min(${maxWidthPx}px, calc(100vw - ${insetForWidth * 2 + 8}px))`
-        : `calc(100vw - ${insetForWidth * 2 + 8}px)`,
-    whiteSpace: 'pre-line',
-    textShadow: '0 1px 12px rgba(0,0,0,0.55)',
-  }
+  const [textOpacity, setTextOpacity] = useState(() => (fadeTransitions === false ? 1 : 0))
+  const [textTransition, setTextTransition] = useState('none')
 
   useEffect(() => {
-    if (!enabled || !text || !sceneReady) return undefined
-    const el = ref.current
-    if (!el) return undefined
+    if (!enabled || !text) return undefined
 
     if (fadeTransitions === false) {
-      el.style.transition = 'none'
-      el.style.opacity = '1'
-      return () => {
-        el.style.transition = 'none'
-      }
+      setTextTransition('none')
+      setTextOpacity(1)
+      return undefined
+    }
+
+    /** Пока сцена не готова — тексты скрыты (без вспышки «все строки сразу»). */
+    if (!sceneReady) {
+      setTextTransition('none')
+      setTextOpacity(0)
+      return undefined
     }
 
     const showMs = Math.max(0, (showAfterSec ?? 0) * 1000)
@@ -241,35 +237,62 @@ function ProcessSectionTextOverlayItem({ item, itemDefaults, sceneReady, fadeTra
     const minHideMs = showMs + fadeIn * 1000 + 50
     const hideMs = Math.max(rawHideMs, minHideMs)
 
-    el.style.opacity = '0'
-    el.style.transition = 'none'
+    setTextTransition('none')
+    setTextOpacity(0)
 
     const tShow = window.setTimeout(() => {
-      el.style.transition = `opacity ${fadeIn}s ease-out`
-      void el.offsetHeight
-      el.style.opacity = '1'
+      setTextTransition(`opacity ${fadeIn}s ease-out`)
+      window.requestAnimationFrame(() => {
+        setTextOpacity(1)
+      })
     }, showMs)
 
     const tHide = shouldHide
       ? window.setTimeout(() => {
-          el.style.transition = `opacity ${fadeOut}s ease-in`
-          el.style.opacity = '0'
+          setTextTransition(`opacity ${fadeOut}s ease-in`)
+          window.requestAnimationFrame(() => {
+            setTextOpacity(0)
+          })
         }, hideMs)
       : null
 
     return () => {
       window.clearTimeout(tShow)
       if (tHide != null) window.clearTimeout(tHide)
-      el.style.transition = 'none'
-      el.style.opacity = '0'
     }
   }, [enabled, text, sceneReady, showAfterSec, fadeInSec, hideAfterSec, fadeOutSec, fadeTransitions])
 
   if (!enabled || !text) return null
 
+  const insetForWidth = typeof insetPx === 'number' ? insetPx : 24
+  const fullW = overlayWidthBasis === 'container' ? '100%' : '100vw'
+  /** В колонке wrapper уже ограничен `bandLayoutStyle.maxWidth`; не вычитаем inset второй раз — иначе текст сужается и ломается на лишние строки. */
+  const textMaxWidth =
+    overlayWidthBasis === 'container'
+      ? maxWidthPx != null
+        ? `min(${maxWidthPx}px, 100%)`
+        : '100%'
+      : maxWidthPx != null
+        ? `min(${maxWidthPx}px, calc(${fullW} - ${insetForWidth * 2 + 8}px))`
+        : `calc(${fullW} - ${insetForWidth * 2 + 8}px)`
+  const textBlockStyle = {
+    fontFamily,
+    fontSize: typeof fontSizePx === 'number' ? `${fontSizePx}px` : fontSizePx,
+    fontWeight,
+    color,
+    lineHeight: lineHeightPx != null ? `${lineHeightPx}px` : lineHeight,
+    letterSpacing,
+    textAlign,
+    maxWidth: textMaxWidth,
+    whiteSpace: 'pre-line',
+    textShadow: '0 1px 12px rgba(0,0,0,0.55)',
+    opacity: fadeTransitions === false ? 1 : textOpacity,
+    transition: fadeTransitions === false ? 'none' : textTransition,
+  }
+
   return (
     <div style={wrapperStyle}>
-      <div ref={ref} style={textBlockStyle}>
+      <div style={textBlockStyle}>
         {text}
       </div>
     </div>
@@ -285,23 +308,55 @@ export default function ProcessSectionTextOverlay({
   itemDefaults,
   sceneReady,
   fadeTransitions = true,
+  /**
+   * Если задано (px), оверлей рисуется в центрированной колонке `max-width: N`
+   * (на узком экране — на всю ширину). Проценты позиций и max-width текста считаются от колонки, не от `100vw`.
+   */
+  layoutColumnMaxWidth = null,
 }) {
   const list = Array.isArray(items) ? items : []
+  const columnPx =
+    layoutColumnMaxWidth != null &&
+    typeof layoutColumnMaxWidth === 'number' &&
+    Number.isFinite(layoutColumnMaxWidth) &&
+    layoutColumnMaxWidth > 0
+      ? layoutColumnMaxWidth
+      : null
+  const overlayWidthBasis = columnPx != null ? 'container' : 'viewport'
+
+  const itemsEl = list.map((item, index) => (
+    <ProcessSectionTextOverlayItem
+      key={item?.id != null ? String(item.id) : index}
+      item={item}
+      itemDefaults={itemDefaults}
+      sceneReady={sceneReady}
+      fadeTransitions={fadeTransitions}
+      overlayWidthBasis={overlayWidthBasis}
+    />
+  ))
+
+  if (columnPx == null) {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0 z-50 overflow-hidden"
+        aria-hidden="true"
+      >
+        {itemsEl}
+      </div>
+    )
+  }
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-50 overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-50 flex justify-center overflow-hidden"
       aria-hidden="true"
     >
-      {list.map((item, index) => (
-        <ProcessSectionTextOverlayItem
-          key={item?.id != null ? String(item.id) : index}
-          item={item}
-          itemDefaults={itemDefaults}
-          sceneReady={sceneReady}
-          fadeTransitions={fadeTransitions}
-        />
-      ))}
+      <div
+        className="relative h-full w-full min-w-0 overflow-hidden"
+        style={{ maxWidth: columnPx }}
+      >
+        {itemsEl}
+      </div>
     </div>
   )
 }

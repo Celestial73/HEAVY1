@@ -33,6 +33,8 @@ import {
   PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
   WORKFLOW_DISABLE_VOLUMETRIC_ON_MOBILE,
   WORKFLOW_LIGHT_SETTINGS,
+  WORKFLOW_TEXT_OVERLAY_COLUMN_MAX_PX,
+  WORKFLOW_TEXT_OVERLAY_OVERRIDES_BY_ID,
   WORKFLOW_VOLUMETRIC_MOBILE_OVERRIDES,
   WORKFLOW_VOLUMETRIC_SETTINGS,
 } from '../config/processSectionSettings.js'
@@ -436,7 +438,7 @@ export default function WorkflowSection() {
     const cubes = []
     const pointLights = []
     const pointLightMotion = []
-    let spotLight
+    const workflowSpotEntries = []
     let spotColorMap
     let cancelled = false
 
@@ -504,8 +506,18 @@ export default function WorkflowSection() {
       controls.enableRotate = true
       controls.enableZoom = true
       controls.enablePan = false
-      controls.minDistance = 8
-      controls.maxDistance = 40
+      const orbit = V.orbitControls ?? {}
+      controls.target.set(0, 0, 0)
+      if (volumetricEnabled) {
+        controls.minDistance = orbit.minDistance ?? 11
+        controls.maxDistance = orbit.maxDistance ?? 22
+      } else {
+        controls.minDistance = 8
+        controls.maxDistance = 40
+      }
+      controls.minPolarAngle = 0
+      controls.maxPolarAngle = Math.PI
+      controls.update()
 
       let volumetricMaterial = null
       if (volumetricEnabled) {
@@ -710,20 +722,11 @@ export default function WorkflowSection() {
         })
       }
 
-      spotLight = new THREE.SpotLight(
-        WORKFLOW_LIGHT_SETTINGS.spotLight.color,
-        WORKFLOW_LIGHT_SETTINGS.spotLight.intensity,
-      )
-      spotLight.position.set(...WORKFLOW_LIGHT_SETTINGS.spotLight.restPosition)
-      spotLight.angle = WORKFLOW_LIGHT_SETTINGS.spotLight.angle
-      spotLight.penumbra = WORKFLOW_LIGHT_SETTINGS.spotLight.penumbra
-      spotLight.decay = WORKFLOW_LIGHT_SETTINGS.spotLight.decay
-      spotLight.distance = WORKFLOW_LIGHT_SETTINGS.spotLight.distance
-      spotLight.castShadow = WORKFLOW_LIGHT_SETTINGS.spotLight.castShadow
-      if (reduceMobilePlateQuality && spotLight.castShadow) {
-        spotLight.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
-      }
-      spotLight.layers.enable(V.layerIndex)
+      const spotLightConfigs = Array.isArray(WORKFLOW_LIGHT_SETTINGS.spotLights)
+        ? WORKFLOW_LIGHT_SETTINGS.spotLights
+        : WORKFLOW_LIGHT_SETTINGS.spotLight
+          ? [WORKFLOW_LIGHT_SETTINGS.spotLight]
+          : []
       const spotMapCfg = reduceMobilePlateQuality
         ? {
             ...WORKFLOW_LIGHT_SETTINGS.spotColorMap,
@@ -731,9 +734,31 @@ export default function WorkflowSection() {
           }
         : WORKFLOW_LIGHT_SETTINGS.spotColorMap
       spotColorMap = createSpotColorMap(spotMapCfg) || undefined
-      spotLight.map = spotColorMap
-      scene.add(spotLight)
-      scene.add(spotLight.target)
+      for (const slCfg of spotLightConfigs) {
+        const targetIntensity = slCfg.intensity ?? 1
+        const spot = new THREE.SpotLight(slCfg.color, 0)
+        spot.position.set(...slCfg.restPosition)
+        spot.angle = slCfg.angle
+        spot.penumbra = slCfg.penumbra
+        spot.decay = slCfg.decay
+        spot.distance = slCfg.distance
+        spot.castShadow = slCfg.castShadow
+        if (reduceMobilePlateQuality && spot.castShadow) {
+          spot.shadow.mapSize.set(mobileShadowMapSize, mobileShadowMapSize)
+        }
+        spot.layers.enable(V.layerIndex)
+        spot.map = spotColorMap
+        spot.target.position.set(...slCfg.target)
+        scene.add(spot)
+        scene.add(spot.target)
+        workflowSpotEntries.push({
+          light: spot,
+          cfg: slCfg,
+          targetIntensity,
+          onAfterSec: Math.max(0, slCfg.onAfterSec ?? 0),
+          fadeInSec: Math.max(0, slCfg.fadeInSec ?? 0),
+        })
+      }
 
       renderPipeline = new THREE.RenderPipeline(renderer)
       if (volumetricEnabled) {
@@ -756,7 +781,6 @@ export default function WorkflowSection() {
       }
 
       const clock = new THREE.Clock()
-      spotLight.target.position.set(...WORKFLOW_LIGHT_SETTINGS.spotLight.target)
       renderer.setAnimationLoop(() => {
         const dt = clock.getDelta()
         const t = clock.elapsedTime
@@ -769,12 +793,17 @@ export default function WorkflowSection() {
             motion.base.z + Math.sin(t * motion.speedZ + motion.phaseZ) * motion.ampZ,
           )
         }
-        spotLight.position.set(...WORKFLOW_LIGHT_SETTINGS.spotLight.restPosition)
-        spotLight.lookAt(
-          spotLight.target.position.x,
-          spotLight.target.position.y,
-          spotLight.target.position.z,
-        )
+        for (const entry of workflowSpotEntries) {
+          const { light, cfg, targetIntensity, onAfterSec, fadeInSec } = entry
+          let alpha = 0
+          if (t > onAfterSec) {
+            if (fadeInSec <= 0) alpha = 1
+            else alpha = Math.min(1, (t - onAfterSec) / fadeInSec)
+          }
+          light.intensity = targetIntensity * alpha
+          light.position.set(...cfg.restPosition)
+          light.lookAt(cfg.target[0], cfg.target[1], cfg.target[2])
+        }
 
         if (introPhase === 'fly') {
           introElapsed += dt
@@ -845,10 +874,12 @@ export default function WorkflowSection() {
         items={(processDefaults.textOverlays ?? []).map((entry) => ({
           ...entry,
           hideAfterSec: null,
+          ...(entry?.id != null ? WORKFLOW_TEXT_OVERLAY_OVERRIDES_BY_ID[entry.id] ?? {} : {}),
         }))}
         itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}
         sceneReady={sceneReady}
         fadeTransitions={processDefaults.fadeTransitions ?? true}
+        layoutColumnMaxWidth={WORKFLOW_TEXT_OVERLAY_COLUMN_MAX_PX}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-55 flex justify-end px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
         <Link

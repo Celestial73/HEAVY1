@@ -69,7 +69,7 @@ export const COMPARISON_SECTION_SETTINGS = {
   /** Кнопка перехода на следующую страницу. */
   cta: {
     text: 'Next',
-    to: '/workflow',
+    to: '/pipeline',
     ariaLabel: 'Перейти к следующей странице',
     className:
       'inline-flex h-12 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95',

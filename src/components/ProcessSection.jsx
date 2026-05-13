@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
+import SectionTextOverlay from './SectionTextOverlay.jsx'
 import * as THREE from 'three/webgpu'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
@@ -1193,7 +1193,7 @@ export default function ProcessSection() {
         className="absolute inset-0 z-0"
         style={{ touchAction: 'none' }}
       />
-      <ProcessSectionTextOverlay
+      <SectionTextOverlay
         items={settings.textOverlays ?? defaults.textOverlays}
         itemDefaults={PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS}
         sceneReady={sceneReady}

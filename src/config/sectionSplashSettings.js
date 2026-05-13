@@ -22,7 +22,7 @@ export const SECTION_SPLASH_DEFAULTS = {
 }
 
 /**
- * Workflow: z-60 — выше `ProcessSectionTextOverlay` (z-50), пока сцена не готова.
+ * Workflow: z-60 — выше `SectionTextOverlay` (z-50), пока сцена не готова.
  */
 export const WORKFLOW_SECTION_SPLASH = {
   ...SECTION_SPLASH_DEFAULTS,

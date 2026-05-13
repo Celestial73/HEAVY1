@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
 
 /**
@@ -7,6 +8,7 @@
  */
 @source "../index.html";
 @source "./**/*.{js,jsx,ts,tsx}";
+@source inline("font-lora font-montserrat");
 
 @font-face {
   font-family: 'Bebas Neue';
@@ -140,12 +142,84 @@
   font-display: swap;
 }
 
+/**
+ * CC Ultimatum — `public/fonts/CCUltimatum-*.ttf`. Для `font-normal` начертания нет: используй `font-bold` / `font-black`.
+ */
+@font-face {
+  font-family: 'CC Ultimatum';
+  src: url('/fonts/CCUltimatum-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CC Ultimatum';
+  src: url('/fonts/CCUltimatum-Heavy.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * Futura BK BT (Rus By Me) — book + book italic (`futurabkbtrusbyme_*.otf` в `public/fonts/`).
+ */
+@font-face {
+  font-family: 'Futura BK BT';
+  src: url('/fonts/futurabkbtrusbyme_book.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Futura BK BT';
+  src: url('/fonts/futurabkbtrusbyme_bookitalic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+/**
+ * Coolvetica — файлы с пробелами в имени (`coolvetica rg.ttf` и варианты в `public/fonts/`).
+ */
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/fonts/coolvetica%20rg.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Coolvetica Condensed';
+  src: url('/fonts/coolvetica%20condensed%20rg.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Coolvetica Compressed';
+  src: url('/fonts/coolvetica%20compressed%20rg.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-brand: 'Bebas Neue', 'Inter', system-ui, sans-serif;
   --font-kalissa: 'Kalissa', 'Inter', system-ui, sans-serif;
   --font-kalissa-swashes: 'Kalissa Swashes', 'Kalissa', 'Inter', system-ui, sans-serif;
   --font-museo-cyrl: 'Museo Cyrl', 'Inter', system-ui, sans-serif;
   --font-st-rome: 'ST Rome', 'Inter', system-ui, sans-serif;
+  --font-cc-ultimatum: 'CC Ultimatum', 'Inter', system-ui, sans-serif;
+  --font-futura-bk-bt: 'Futura BK BT', 'Inter', system-ui, sans-serif;
+  --font-coolvetica: 'Coolvetica', 'Inter', system-ui, sans-serif;
+  --font-coolvetica-condensed: 'Coolvetica Condensed', 'Coolvetica', 'Inter', system-ui, sans-serif;
+  --font-coolvetica-compressed: 'Coolvetica Compressed', 'Coolvetica', 'Inter', system-ui, sans-serif;
+  --font-lora: 'Lora', Georgia, 'Times New Roman', serif;
+  --font-montserrat: 'Montserrat', 'Inter', system-ui, sans-serif;
 
   --animate-fade-up: fade-up 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   /** Как fade-up, но финальная непрозрачность 0.5 — для текста, где нужна полупрозрачность после анимации (обычный fade-up задаёт opacity: 1 и перебивает `opacity-50`). */

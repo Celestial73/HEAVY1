@@ -107,7 +107,7 @@ export const TEAM_AND_CTA_SETTINGS = {
   /** Нижний блок: только кнопка */
   footer: {
     buttonText: 'Заказать утяжеление',
-    /** Внутренний путь (`/workflow`) или `mailto:…` / `https://…` */
+    /** Внутренний путь (`/pipeline` и т.д.) или `mailto:…` / `https://…` */
     to: 'https://t.me/bailem0s',
     buttonClassName:
       'mb-4 inline-flex h-12 w-full max-w-md items-center justify-center rounded-full border border-white/20 bg-white px-8 text-sm font-semibold uppercase tracking-[0.2em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:w-auto',

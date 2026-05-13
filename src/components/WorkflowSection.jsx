@@ -27,7 +27,7 @@ import {
   createPlateFigureObjects,
 } from '../utils/plateFigureHandlers.js'
 import { createMetalProceduralMaps } from '../utils/metalProceduralTextures.js'
-import ProcessSectionTextOverlay from './ProcessSectionTextOverlay.jsx'
+import SectionTextOverlay from './SectionTextOverlay.jsx'
 import {
   PROCESS_SECTION_SETTINGS as processDefaults,
   PROCESS_TEXT_OVERLAY_ITEM_DEFAULTS,
@@ -870,7 +870,7 @@ export default function WorkflowSection() {
         style={{ touchAction: 'none' }}
       />
       <SectionSplashOverlay splash={WORKFLOW_SECTION_SPLASH} visible={!sceneReady} />
-      <ProcessSectionTextOverlay
+      <SectionTextOverlay
         items={(processDefaults.textOverlays ?? []).map((entry) => ({
           ...entry,
           hideAfterSec: null,

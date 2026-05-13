@@ -13,7 +13,6 @@ function mergeTextOverlayItem(base, user) {
   return { ...base, ...u }
 }
 
-/** Авто: к какой точке блока привязать линию yPercent (квартильная сетка). */
 function inferYOriginFromPercent(yPercent) {
   let nearest = QUARTILE_YP[0]
   let best = Math.abs(yPercent - nearest)
@@ -29,7 +28,6 @@ function inferYOriginFromPercent(yPercent) {
   return 'center'
 }
 
-/** Авто: к какой точке блока привязать линию xPercent (квартильная сетка). */
 function inferXOriginFromPercent(xPercent) {
   let nearest = QUARTILE_XP[0]
   let best = Math.abs(xPercent - nearest)
@@ -45,10 +43,6 @@ function inferXOriginFromPercent(xPercent) {
   return 'center'
 }
 
-/**
- * Режим позиционирования по процентам: xPercent/yPercent + origin.
- * Возвращает null — использовать placement/corner.
- */
 function resolveBandLayout(config) {
   const hasY =
     config.yPercent != null &&
@@ -105,7 +99,7 @@ function resolveBandLayout(config) {
   return null
 }
 
-/** `viewport` — проценты и max-width от всего экрана; `container` — от узкой колонки (Workflow на десктопе). */
+/** `viewport` — относительно всего экрана; `container` — от узкой центрированной колонки. */
 function bandLayoutStyle(band, insetPx, widthBasis = 'viewport') {
   const inset = typeof insetPx === 'number' ? insetPx : 24
   const { yPercent, xPercent, xOrigin, yOrigin } = band
@@ -168,7 +162,7 @@ function placementWrapperStyle(placement, corner, insetPx, textAlign) {
   return style
 }
 
-function ProcessSectionTextOverlayItem({
+function SectionTextOverlayItem({
   item,
   itemDefaults,
   sceneReady,
@@ -220,7 +214,6 @@ function ProcessSectionTextOverlayItem({
       return undefined
     }
 
-    /** Пока сцена не готова — тексты скрыты (без вспышки «все строки сразу»). */
     if (!sceneReady) {
       setTextTransition('none')
       setTextOpacity(0)
@@ -230,7 +223,6 @@ function ProcessSectionTextOverlayItem({
     const showMs = Math.max(0, (showAfterSec ?? 0) * 1000)
     const fadeIn = Math.max(0.05, fadeInSec ?? 0.5)
     const fadeOut = Math.max(0.05, fadeOutSec ?? 0.5)
-    /** `null` / не число — не гасить (удобно для страниц вроде Workflow). */
     const shouldHide =
       hideAfterSec != null && typeof hideAfterSec === 'number' && Number.isFinite(hideAfterSec)
     const rawHideMs = shouldHide ? hideAfterSec * 1000 : 0
@@ -266,7 +258,6 @@ function ProcessSectionTextOverlayItem({
 
   const insetForWidth = typeof insetPx === 'number' ? insetPx : 24
   const fullW = overlayWidthBasis === 'container' ? '100%' : '100vw'
-  /** В колонке wrapper уже ограничен `bandLayoutStyle.maxWidth`; не вычитаем inset второй раз — иначе текст сужается и ломается на лишние строки. */
   const textMaxWidth =
     overlayWidthBasis === 'container'
       ? maxWidthPx != null
@@ -277,6 +268,7 @@ function ProcessSectionTextOverlayItem({
         : `calc(${fullW} - ${insetForWidth * 2 + 8}px)`
   const textBlockStyle = {
     fontFamily,
+    /** Число — px; строка — произвольный CSS (например `clamp(...)` из настроек). */
     fontSize: typeof fontSizePx === 'number' ? `${fontSizePx}px` : fontSizePx,
     fontWeight,
     color,
@@ -300,18 +292,13 @@ function ProcessSectionTextOverlayItem({
 }
 
 /**
- * Несколько текстовых оверлеев над секцией Process.
- * `sceneReady` — canvas смонтирован и WebGPU инициализирован.
+ * Несколько текстовых оверлеев поверх секции (проценты, fade по `sceneReady`).
  */
-export default function ProcessSectionTextOverlay({
+export default function SectionTextOverlay({
   items,
   itemDefaults,
   sceneReady,
   fadeTransitions = true,
-  /**
-   * Если задано (px), оверлей рисуется в центрированной колонке `max-width: N`
-   * (на узком экране — на всю ширину). Проценты позиций и max-width текста считаются от колонки, не от `100vw`.
-   */
   layoutColumnMaxWidth = null,
 }) {
   const list = Array.isArray(items) ? items : []
@@ -325,7 +312,7 @@ export default function ProcessSectionTextOverlay({
   const overlayWidthBasis = columnPx != null ? 'container' : 'viewport'
 
   const itemsEl = list.map((item, index) => (
-    <ProcessSectionTextOverlayItem
+    <SectionTextOverlayItem
       key={item?.id != null ? String(item.id) : index}
       item={item}
       itemDefaults={itemDefaults}

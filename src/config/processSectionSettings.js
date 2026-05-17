@@ -558,13 +558,6 @@ export const PROCESS_SECTION_SETTINGS = {
     {
       label: {
         text: '3. Плавим',
-        object3d: {
-          enabled: true,
-          gltfUrl: '/models/LionKeystone.glb',
-          size: 1,
-          position: [0, -0.612, 0.173],
-          rotation: [0, 0, 0],
-        },
       },
       // Алюминий: светло-серый, средняя шероховатость (анод / шлифовка).
       procedural: { preset: 'aluminum', seed: 71004 },

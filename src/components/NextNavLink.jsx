@@ -1,21 +1,26 @@
 import { Link } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 
 /**
- * Кнопка-ссылка «вперёд»: настраиваемый текст + стрелка.
- * Стили задаются снаружи через `className` / `style` (как у обычного Link).
+ * Фиксированная кнопка «вперёд» на уровне глобального CTA.
+ * Текст children не рендерим: визуально только белый круг с чёрной стрелкой.
  */
-export default function NextNavLink({ to, ariaLabel, className, style, children }) {
-  return (
-    <Link to={to} aria-label={ariaLabel} className={className} style={style}>
-      {children}
+export default function NextNavLink({ to, ariaLabel, style }) {
+  const link = (
+    <Link
+      to={to}
+      aria-label={ariaLabel}
+      className="pointer-events-auto fixed bottom-5 right-5 z-70 inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:bg-zinc-100 active:scale-95 sm:bottom-6 sm:right-8"
+      style={style}
+    >
       <svg
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="h-4 w-4"
+        className="h-5 w-5"
         aria-hidden="true"
       >
         <path d="M5 12h14" />
@@ -23,4 +28,6 @@ export default function NextNavLink({ to, ariaLabel, className, style, children 
       </svg>
     </Link>
   )
+
+  return typeof document === 'undefined' ? link : createPortal(link, document.body)
 }

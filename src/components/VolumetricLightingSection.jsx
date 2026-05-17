@@ -287,6 +287,15 @@ export default function VolumetricLightingSection() {
   const containerRef = useRef(null)
   const [settings, setSettings] = useState(volumetricLightingDefaults)
   const [sceneReady, setSceneReady] = useState(false)
+  const brandIntro = settings.overlay.brandIntro ?? {}
+  const brandInitialDelay =
+    typeof brandIntro.initialDelay === 'number' && Number.isFinite(brandIntro.initialDelay)
+      ? brandIntro.initialDelay
+      : 2
+  const brandLineStagger =
+    typeof brandIntro.lineStagger === 'number' && Number.isFinite(brandIntro.lineStagger)
+      ? brandIntro.lineStagger
+      : 0.3
 
   useEffect(() => {
     if (!import.meta.hot) return undefined
@@ -399,7 +408,13 @@ export default function VolumetricLightingSection() {
       const placedPositions = []
       const spinnables = []
       const randomCount = S.randomSpinnablesCount ?? 4
-      const selectedSpinnables = pickRandomItems(S.spinnables ?? [], randomCount)
+      const allSpinnables = S.spinnables ?? []
+      const fixedSpinnables = allSpinnables.filter((cfg) => cfg.alwaysInclude === true)
+      const randomSpinnables = allSpinnables.filter((cfg) => cfg.alwaysInclude !== true)
+      const selectedSpinnables = [
+        ...fixedSpinnables,
+        ...pickRandomItems(randomSpinnables, randomCount),
+      ]
       for (const cfg of selectedSpinnables) {
         const mesh = await createSpinnableObject(cfg)
 
@@ -799,7 +814,7 @@ export default function VolumetricLightingSection() {
       style={{ touchAction: settings.layout.touchAction }}
     >
       <SectionSplashOverlay splash={VOLUMETRIC_SECTION_SPLASH} visible={!sceneReady} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 px-6 pb-6 sm:px-10 sm:pb-8 lg:px-16 lg:pb-12">
+      <div className="pointer-events-none fixed bottom-20 right-5 z-70 sm:bottom-21 sm:right-8">
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -807,7 +822,7 @@ export default function VolumetricLightingSection() {
           style={{
             animationDelay: `${settings.overlay.controlsIntro.initialDelay}s`,
           }}
-          className="pointer-events-auto group inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/15 bg-white/5 text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
+          className="pointer-events-auto group inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition hover:bg-black/70 active:scale-[0.98]"
         >
           <svg
             viewBox="0 0 24 24"
@@ -840,24 +855,36 @@ export default function VolumetricLightingSection() {
         </NextNavLink>
       </div>
 
-      <div className="pointer-events-none absolute left-0 top-0 z-10 flex w-full justify-start px-6 pt-20 sm:px-12 sm:pt-24 md:px-16 md:pt-14 lg:px-24 lg:pt-10">
-        <h1 className="font-brand text-left uppercase leading-[0.9] tracking-tight text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)] text-6xl sm:text-10xl md:text-12xl lg:text-[14rem]">
+      <div
+        className="pointer-events-none absolute z-10"
+        style={{
+          left: brandIntro.x ?? 'clamp(24px, 6vw, 96px)',
+          top: brandIntro.y ?? 'clamp(80px, 12vh, 96px)',
+          maxWidth: brandIntro.maxWidth ?? 'calc(100vw - clamp(48px, 12vw, 192px))',
+        }}
+      >
+        <h1
+          className="font-brand uppercase leading-[0.9] tracking-tight text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)]"
+          style={{ textAlign: brandIntro.textAlign ?? 'left' }}
+        >
           <span
-            className="block animate-fade-up tracking-[0.02em] text-transparent [-webkit-text-stroke:1.5px_white] sm:[-webkit-text-stroke:2px_white] lg:[-webkit-text-stroke:2.5px_white]"
-            style={{ animationDelay: `${settings.overlay.brandIntro.initialDelay}s` }}
-          >
-            Агентство
-          </span>
-          <span
-            className="block animate-fade-up tracking-[0.01em] text-7xl"
+            className="block animate-fade-up tracking-[0.02em] text-transparent"
             style={{
-              animationDelay: `${
-                settings.overlay.brandIntro.initialDelay +
-                settings.overlay.brandIntro.lineStagger
-              }s`,
+              animationDelay: `${brandInitialDelay}s`,
+              fontSize: brandIntro.subtitleFontSize ?? 'clamp(3.75rem, 7vw, 14rem)',
+              WebkitTextStroke: `${brandIntro.titleStrokeWidth ?? 'clamp(0.5px, 0.18vw, 1.5px)'} white`,
             }}
           >
-            утяжеления
+            {brandIntro.subtitleText ?? 'Агентство'}
+          </span>
+          <span
+            className="block animate-fade-up tracking-[0.01em]"
+            style={{
+              animationDelay: `${brandInitialDelay + brandLineStagger}s`,
+              fontSize: brandIntro.titleFontSize ?? 'clamp(4.5rem, 15vw, 15rem)',
+            }}
+          >
+            {brandIntro.titleText ?? 'утяжеления'}
           </span>
         </h1>
       </div>

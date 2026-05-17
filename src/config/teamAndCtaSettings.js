@@ -62,7 +62,7 @@ export const TEAM_AND_CTA_SETTINGS = {
    */
   portraits: [
     {
-      imageUrl: 'images/yolandi_beautiful.png',
+      imageUrl: 'images/yolandi_beautiful_1.png',
       imageAlt: 'Yolandi',
       caption: 'Йоланди',
       captionClassName: 'font-kalissa mt-4 pr-4 text-2xl text-zinc-400 md:text-xl lg:text-5xl',
@@ -78,7 +78,7 @@ export const TEAM_AND_CTA_SETTINGS = {
       objectFit: 'contain',
     },
     {
-      imageUrl: 'images/dyatlov_beautiful.png',
+      imageUrl: 'images/dyatlov_beautiful_1.png',
       imageAlt: 'Furnace',
       caption: 'А.С. Дятлов',
       captionClassName: 'font-kalissa pl-4 mt-2 text-zinc-400 text-2xl md:text-xl lg:text-5xl',

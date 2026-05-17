@@ -3,8 +3,7 @@
  * Меняйте классы и текст здесь — разметка в `SectionSplashOverlay.jsx`.
  */
 
-const SPINNER_CLASS =
-  'h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white/90'
+const SPINNER_CLASS = 'h-14 w-14 animate-splash-spin object-contain invert drop-shadow-[0_0_18px_rgba(255,255,255,0.9)]'
 
 const CONTENT_CLASS = 'flex flex-col items-center gap-5 text-white/90'
 
@@ -13,8 +12,13 @@ const LABEL_CLASS = 'text-xs font-medium uppercase tracking-[0.25em] text-white/
 /** Базовый пресет: z-40 — выше обычного UI секции (z-10 / z-20). */
 export const SECTION_SPLASH_DEFAULTS = {
   enabled: true,
+  /** true — держать splash на экране всегда, удобно для настройки/просмотра. */
+  forceVisible: false,
   showSpinner: true,
-  label: 'Loading',
+  spinnerImageUrl: 'images/small_elephant.png',
+  /** Прозрачность картинки/спиннера: 0..1. */
+  spinnerOpacity: 0.9,
+  label: 'Агентство грузится...',
   wrapperClassName: 'absolute inset-0 z-40 flex items-center justify-center bg-black',
   contentClassName: CONTENT_CLASS,
   spinnerClassName: SPINNER_CLASS,

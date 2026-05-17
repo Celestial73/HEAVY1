@@ -33,12 +33,13 @@ export const COMPARISON_SECTION_SETTINGS = {
       'flex h-full min-h-0 min-w-0 flex-[50_1_0] flex-col gap-6 md:flex-[65_1_0]',
     /**
      * Слот карточки: 50% высоты на мобиле / 35% ширины на десктопе.
+     * Нижний padding оставляет место под фиксированные кнопки CTA / Next.
      * Колонка из самой карточки и кнопки Next.
      * `items-stretch` — карточка тянется на всю ширину слота.
      * `flex-col` — кнопка располагается ПОД карточкой.
      */
     cardSlotClassName:
-      'flex min-h-0 min-w-0 flex-[50_1_0] flex-col items-stretch gap-4 md:flex-[35_1_0]',
+      'flex min-h-0 min-w-0 flex-[50_1_0] flex-col items-stretch gap-4 pb-6 md:flex-[35_1_0] md:pb-14',
     /** Обёртка вокруг ComparisonCard внутри cardSlot — забирает всё свободное место по высоте. */
     cardFrameClassName: 'min-h-0 min-w-0 w-full flex-1',
     /** Слот CTA-кнопки под карточкой: справа, фиксированная высота (shrink-0). */

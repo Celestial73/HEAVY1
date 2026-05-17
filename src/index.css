@@ -225,6 +225,7 @@
   /** Как fade-up, но финальная непрозрачность 0.5 — для текста, где нужна полупрозрачность после анимации (обычный fade-up задаёт opacity: 1 и перебивает `opacity-50`). */
   --animate-fade-up-half: fade-up-half 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --animate-fade-page: fade-page 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-splash-spin: splash-spin 3s linear infinite;
 
   @keyframes fade-up {
     from {
@@ -254,6 +255,12 @@
     }
     to {
       opacity: 1;
+    }
+  }
+
+  @keyframes splash-spin {
+    to {
+      transform: rotate(360deg);
     }
   }
 }

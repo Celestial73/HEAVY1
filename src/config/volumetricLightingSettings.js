@@ -157,75 +157,58 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
    * Для `type: 'gltf' | 'glb'`: используйте `gltfUrl` и опционально `gltfScale`.
    * material: опции MeshStandardMaterial (color, roughness, metalness, side: 'front'|'back'|'double').
    * sensitivity (опц.): { x, y, z } переопределяет interaction.dragSensitivity*.
+   * alwaysInclude: true — объект добавляется всегда, сверх случайной выборки.
    */
   randomSpinnablesCount: 4,
   spinnables: [
     {
-      id: 'teapot',
-      type: 'teapot',
-      args: { size: 0.8, segments: 18 },
-      position: [0, 0, 0],
-      material: { color: 0xffffff, side: 'double' },
-      castShadow: true,
-    },
-    {
-      id: 'cube',
-      type: 'box',
-      args: { width: 0.7, height: 0.7, depth: 0.7 },
-      position: [-2.6, -2.65, 1.4],
-      material: { color: 0xff8b4d, roughness: 0.4, metalness: 0.2 },
-      castShadow: true,
-      sensitivity: { x: 0.012, y: 0.012, z: 0.012 },
-    },
-    {
-      id: 'icosahedron',
-      type: 'icosahedron',
-      args: { radius: 0.55, detail: 0 },
-      position: [2.4, -2.45, 0.6],
-      material: { color: 0x53b5ff, roughness: 0.35, metalness: 0.5 },
-      castShadow: true,
-    },
-    {
-      id: 'torusKnot',
-      type: 'obj',
-      objUrl: '/models/6_Pounder_Brass_Cannon.obj',
-      mtlUrl: '/models/6_Pounder_Brass_Cannon.mtl',
-      textureSet: {
-        enabled: true,
-        folder: '/models/6_Pounder_Brass_Textures',
-        prefix: '6_Pounder_Brass',
-        suffixes: ['BaseColor.png', 'Normal.png', 'Roughness.png', 'Metallic.png'],
-      },
-      objScale: 0.1,
-      position: [-1, -2.4, -2.4],
-      material: { color: 0xffffff, roughness: 0.25, metalness: 0.4 },
-      castShadow: true,
-    },
-    {
-      id: 'leg-extension',
-      type: 'obj',
-      objUrl: '/models/Leg%20Extension_OBJ.obj',
-      objScale: 0.03,
-      position: [-1.4, -2.2, 1.8],
-      material: { color: 0xf6f6f6, roughness: 0.5, metalness: 0.2, side: 'double' },
-      castShadow: true,
-    },
-    {
-      id: 'skyscanner-100',
-      type: 'obj',
-      objUrl: '/models/skyscanner%20100.obj',
-      objScale: 0.24,
-      position: [1.6, -2.1, -1.9],
-      material: { color: 0xffffff, roughness: 0.35, metalness: 0.45, side: 'double' },
-      castShadow: true,
-    },
-    {
       id: 'rock',
       type: 'glb',
-      gltfUrl: '/models/rock.glb',
+      gltfUrl: '/models/cracked_gray_rock.glb',
       gltfScale: 0.9,
       position: [0.5, -2.35, 2.1],
       castShadow: true,
+    },
+    {
+      id: 'ps1-low-poly-moon',
+      type: 'glb',
+      gltfUrl: '/models/ps1_style_low_poly_moon.glb',
+      gltfScale: 0.8,
+      position: [-1.7, -2.35, -1.5],
+      castShadow: true,
+    },
+    {
+      id: 'la-bellesa',
+      type: 'glb',
+      gltfUrl: '/models/la_bellesa_dominant_la_forca_-_game_ready.glb',
+      gltfScale: 0.8,
+      position: [-2.2, -2.35, 1.2],
+      castShadow: true,
+    },
+    {
+      id: 'bad-bell',
+      type: 'glb',
+      gltfUrl: '/models/bad-_bell-04lp.glb',
+      gltfScale: 0.8,
+      position: [1.8, -2.35, -1.2],
+      castShadow: true,
+    },
+    {
+      id: 'wooden-cross',
+      type: 'glb',
+      gltfUrl: '/models/wooden_cross.glb',
+      gltfScale: 0.8,
+      position: [-0.8, -2.35, -2.2],
+      castShadow: true,
+    },
+    {
+      id: 'asian-elephant',
+      type: 'glb',
+      gltfUrl: '/models/asian_elephant.glb',
+      gltfScale: 1,
+      position: [2.2, -2.35, 1.7],
+      castShadow: true,
+      alwaysInclude: true,
     },
   ],
 
@@ -355,6 +338,19 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       initialDelay: 2,
       /** Промежуток между соседними строками (сек). */
       lineStagger: 0.3,
+      /**
+       * Позиция и размер бренд-текста. Можно задавать любые CSS-значения:
+       * `px`, `%`, `vw/vh`, `clamp(...)`, `calc(...)`.
+       */
+      x: 'clamp(24px, 6vw, 96px)',
+      y: 'clamp(80px, 12vh, 96px)',
+      maxWidth: 'calc(100vw - clamp(48px, 12vw, 192px))',
+      subtitleText: 'Агентство',
+      titleText: 'утяжеления',
+      subtitleFontSize: 'clamp(3.75rem, 6vw, 14rem)',
+      titleFontSize: 'clamp(4.5rem, 9vw, 15rem)',
+      textAlign: 'left',
+      titleStrokeWidth: 'clamp(0.1px, 0.18vw, 1.5px)',
     },
     /** Анимация появления кнопок управления (refresh, next). */
     controlsIntro: {
@@ -365,7 +361,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     },
     /** Кнопка перехода на следующую страницу (оверлей снизу). */
     nextLink: {
-      text: 'ОБ АГЕНТСТВЕ',
+      text: '',
       ariaLabel: 'Перейти к странице сравнения',
       to: '/comparison',
     },

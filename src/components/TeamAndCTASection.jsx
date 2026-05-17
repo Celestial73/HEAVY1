@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { TEAM_AND_CTA_SETTINGS as defaults } from '../config/teamAndCtaSettings.js'
 
 const QUARTILE_YP = [0, 25, 50, 75, 100]
@@ -129,25 +128,6 @@ function resolvePublicAssetUrl(url) {
   return `${normalizedBase}${normalizedUrl}`
 }
 
-function isExternalHref(to) {
-  return /^mailto:/i.test(to) || /^https?:\/\//i.test(to)
-}
-
-function CtaButton({ to, className, children }) {
-  if (isExternalHref(to)) {
-    return (
-      <a href={to} className={className}>
-        {children}
-      </a>
-    )
-  }
-  return (
-    <Link to={to} className={className}>
-      {children}
-    </Link>
-  )
-}
-
 function PortraitBlock({ portrait, frameClassName, stageInsetPx, animationDelaySec }) {
   const { imageUrl, imageAlt, caption, captionClassName } = portrait ?? {}
   const w = useResponsiveWidthVw(portrait?.widthVw, WIDTH_VW_FALLBACK)
@@ -252,7 +232,6 @@ export default function TeamAndCTASection() {
     portraitFrameClassName,
     portraitsStageClassName,
     portraitsStageInsetPx,
-    footer,
   } = settings
 
   const portraitList = Array.isArray(portraits) ? portraits : []
@@ -296,20 +275,6 @@ export default function TeamAndCTASection() {
             </div>
           </header>
         ) : null}
-
-        <div
-          className="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-6 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:px-10"
-          role="region"
-          aria-label="Действия"
-        >
-          <div className="pointer-events-auto w-full max-w-md sm:flex sm:justify-center">
-            <div className="animate-fade-up w-full sm:flex sm:justify-center" style={{ animationDelay: `${intro.footer.delay}s` }}>
-              <CtaButton to={footer.to} className={`${footer.buttonClassName} w-full sm:w-auto`}>
-                {footer.buttonText}
-              </CtaButton>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   )

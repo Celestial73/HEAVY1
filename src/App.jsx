@@ -5,6 +5,7 @@ import ProcessSection from './components/ProcessSection'
 import TeamAndCTASection from './components/TeamAndCTASection'
 import ScrollToTop from './components/ScrollToTop'
 import VolumetricLightingSection from './components/VolumetricLightingSection'
+import GlobalCtaButton from './components/GlobalCtaButton.jsx'
 import VisitLogger from './components/VisitLogger.jsx'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
     <div className="min-h-screen bg-black text-zinc-100">
       <VisitLogger />
       <ScrollToTop />
+      <GlobalCtaButton />
       <div key={location.pathname} className="animate-fade-page">
         <Routes location={location}>
           <Route path="/" element={<VolumetricLightingSection />} />

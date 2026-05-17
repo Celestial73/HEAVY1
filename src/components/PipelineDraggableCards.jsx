@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { COMPARISON_SECTION_SETTINGS } from '../config/comparisonSectionSettings.js'
-
-function resolvePublicAssetUrl(url) {
-  if (!url) return url
-  if (/^(https?:)?\/\//.test(url) || url.startsWith('data:')) return url
-  const base = import.meta.env.BASE_URL || '/'
-  const normalizedBase = base.endsWith('/') ? base : `${base}/`
-  const normalizedUrl = url.startsWith('/') ? url.slice(1) : url
-  return `${normalizedBase}${normalizedUrl}`
-}
+import PipelineCardRows from './PipelineCardRows.jsx'
+import {
+  PipelineCardOutline,
+  PipelineRopePath,
+  resolveCardOutlineConfig,
+  resolveRopeConfig,
+} from './PipelineCardChrome.jsx'
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n))
@@ -255,6 +253,13 @@ export default function PipelineDraggableCards({
   bottomReservePx = 108,
   /** Дефолт высота/ширина; у карточки можно задать `heightWidthRatio`. */
   cardHeightWidthRatio = 0.5,
+  cardRowDefaults,
+  cardFadeTransitions = true,
+  cardRowGapPx = 8,
+  cardOutlineDefaults,
+  ropeDefaults,
+  ropesByIndex,
+  chromeFadeTransitions = true,
 }) {
   const list = useMemo(() => (Array.isArray(cards) ? cards.filter((c) => c && c.enabled !== false) : []), [cards])
 
@@ -672,17 +677,25 @@ export default function PipelineDraggableCards({
       const mx = (ax + gx) / 2
       const my = (ay + gy) / 2
       const dist = Math.hypot(gx - ax, gy - ay) || 1
-      const sag = Math.min(36, dist * 0.14)
-      const qy = my + sag
+      const ropeCfg = resolveRopeConfig(list, i, ropeDefaults, ropesByIndex)
+      const sagMax =
+        typeof ropeCfg.maxSagPx === 'number' && Number.isFinite(ropeCfg.maxSagPx)
+          ? ropeCfg.maxSagPx
+          : 36
+      const sagFactor =
+        typeof ropeCfg.sagFactor === 'number' && Number.isFinite(ropeCfg.sagFactor)
+          ? ropeCfg.sagFactor
+          : 0.14
+      const sag = Math.min(sagMax, dist * sagFactor)
+      const qySag = my + sag
       ropePaths.push(
-        <path
+        <PipelineRopePath
           key={`rope-${list[i]?.id ?? i}`}
-          d={`M ${ax} ${ay} Q ${mx} ${qy} ${gx} ${gy}`}
-          fill="none"
-          stroke="rgba(245,240,230,0.55)"
-          strokeWidth={1.25}
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
+          d={`M ${ax} ${ay} Q ${mx} ${qySag} ${gx} ${gy}`}
+          config={ropeCfg}
+          fadeTransitions={chromeFadeTransitions}
+          stroke={ropeCfg.stroke}
+          strokeWidth={ropeCfg.strokeWidth}
         />,
       )
     }
@@ -696,19 +709,17 @@ export default function PipelineDraggableCards({
         const w = layout.widths[index]
         const off = offsets[index] ?? { x: 0, y: 0 }
         if (!b) return null
-        const src = card.imageUrl ? resolvePublicAssetUrl(card.imageUrl) : null
-        const textCls =
-          card.textClassName ??
-          'text-center text-[clamp(15px,4.2vw,22px)] font-medium leading-tight tracking-wide text-zinc-100'
-        const thumbCls = card.imageClassName ?? 'rounded-sm opacity-95'
-        const thumbMaxH = Math.min(76, Math.round(h * 0.34))
-        const thumbMaxW = Math.round(w * 0.72)
+        const rowGap =
+          typeof card.rowGapPx === 'number' && Number.isFinite(card.rowGapPx)
+            ? card.rowGapPx
+            : cardRowGapPx
+        const outlineCfg = resolveCardOutlineConfig(card, cardOutlineDefaults)
 
         return (
           <div
             key={card.id ?? index}
             role="presentation"
-            className="absolute z-10 flex cursor-grab touch-none flex-col overflow-hidden border border-white/85 bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)] active:cursor-grabbing"
+            className="absolute z-10 flex cursor-grab touch-none flex-col overflow-hidden bg-black active:cursor-grabbing"
             style={{
               width: w,
               height: h,
@@ -717,27 +728,17 @@ export default function PipelineDraggableCards({
             }}
             onPointerDown={(e) => onPointerDown(e, index)}
           >
-            <div
-              className={`flex min-h-0 flex-1 flex-col items-center justify-center px-3 py-2 ${textCls}`}
-            >
-              <span className="block max-w-full whitespace-pre-wrap text-balance">{card.text ?? ''}</span>
-            </div>
-            <div className="flex shrink-0 flex-col items-center justify-end px-2 pb-2.5 pt-0">
-              {src ? (
-                <img
-                  src={src}
-                  alt=""
-                  draggable={false}
-                  className={`object-contain ${thumbCls}`}
-                  style={{ maxHeight: thumbMaxH, maxWidth: thumbMaxW }}
-                />
-              ) : (
-                <div
-                  className="rounded-sm bg-zinc-900/90 ring-1 ring-white/10"
-                  style={{ height: Math.min(48, thumbMaxH), width: Math.min(64, thumbMaxW) }}
-                />
-              )}
-            </div>
+            <PipelineCardOutline
+              config={outlineCfg}
+              fadeTransitions={chromeFadeTransitions}
+            />
+            <PipelineCardRows
+              rows={card.rows}
+              rowDefaults={cardRowDefaults}
+              fadeTransitions={cardFadeTransitions}
+              sceneReady
+              gapPx={rowGap}
+            />
           </div>
         )
       })}

@@ -1,0 +1,29 @@
+# Пример для Ubuntu: скопировать в /etc/nginx/sites-available/heavy
+# root должен указывать на dist/ внутри клона репозитория.
+#
+#   sudo cp /var/www/heavy/scripts/nginx-heavy.conf.example /etc/nginx/sites-available/heavy
+#   sudo nano /etc/nginx/sites-available/heavy   # server_name → ваш домен
+#   sudo ln -sf /etc/nginx/sites-available/heavy /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name тяжелые-плавки.рф www.тяжелые-плавки.рф;
+
+    root /var/www/heavy/dist;
+    index index.html;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+}

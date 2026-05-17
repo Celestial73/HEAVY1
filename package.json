@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:deploy": "vite build",
+    "release": "npm run build:deploy && node scripts/git-add-dist.mjs",
     "build:pages": "vite build && node scripts/prepare-gh-pages.mjs",
     "lint": "eslint .",
     "preview": "vite preview"

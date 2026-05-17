@@ -28,6 +28,13 @@ export default function PipelineSection() {
     pipelineCardsStageInsetPx,
     pipelineCardsBottomReservePx,
     pipelineCardHeightWidthRatio,
+    pipelineCardRowDefaults,
+    pipelineCardFadeTransitions,
+    pipelineCardRowGapPx,
+    pipelineChromeFadeTransitions,
+    pipelineCardOutlineDefaults,
+    pipelineRopeDefaults,
+    pipelineRopes,
   } = settings
 
   return (
@@ -37,6 +44,13 @@ export default function PipelineSection() {
         stageInsetPx={pipelineCardsStageInsetPx}
         bottomReservePx={pipelineCardsBottomReservePx}
         cardHeightWidthRatio={pipelineCardHeightWidthRatio}
+        cardRowDefaults={pipelineCardRowDefaults}
+        cardFadeTransitions={pipelineCardFadeTransitions}
+        cardRowGapPx={pipelineCardRowGapPx}
+        chromeFadeTransitions={pipelineChromeFadeTransitions}
+        cardOutlineDefaults={pipelineCardOutlineDefaults}
+        ropeDefaults={pipelineRopeDefaults}
+        ropesByIndex={pipelineRopes}
       />
       <SectionTextOverlay
         items={textOverlays}

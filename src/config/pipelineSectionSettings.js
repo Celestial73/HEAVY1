@@ -31,6 +31,59 @@ export const PIPELINE_TEXT_OVERLAY_ITEM_DEFAULTS = {
 }
 
 /**
+ * Одна строка внутри карточки Pipeline (`pipelineCards[].rows[]`).
+ * Shallow-merge с `pipelineCardRowDefaults` в `PipelineCardRows.jsx`.
+ */
+export const PIPELINE_CARD_ROW_DEFAULTS = {
+  enabled: true,
+  text: '',
+  /** Число — px; строка — CSS (`clamp(...)` и т.д.). */
+  fontSizePx: 'clamp(15px, 4.2vw, 22px)',
+  fontFamily: "'Bebas Neue', 'Inter', system-ui, sans-serif",
+  fontWeight: '400',
+  fontStyle: 'normal',
+  color: '#ffffff',
+  lineHeight: 1.12,
+  letterSpacing: '0.02em',
+  textAlign: 'center',
+  /** Сек от монтирования карточки до начала fade-in. */
+  showAfterSec: 0,
+  fadeInSec: 0.55,
+  /** `null` — строка не гаснет; число — сек до начала fade-out. */
+  hideAfterSec: null,
+  fadeOutSec: 0.55,
+  /**
+   * Отступ сверху перед этой строкой (px). У первой строки — от верха блока текста.
+   * Не задано — для 2-й и далее используется `rowGapPx` карточки / `pipelineCardRowGapPx`.
+   */
+  gapBeforePx: null,
+}
+
+/** Рамка (outline) карточки Pipeline — fade и цвет границы. */
+export const PIPELINE_CARD_OUTLINE_DEFAULTS = {
+  enabled: true,
+  showAfterSec: 0.15,
+  fadeInSec: 0.55,
+  hideAfterSec: null,
+  fadeOutSec: 0.45,
+  borderColor: 'rgba(255, 255, 255, 0.85)',
+  borderWidthPx: 1,
+}
+
+/** Нить между соседними карточками — fade и stroke. */
+export const PIPELINE_ROPE_DEFAULTS = {
+  enabled: true,
+  showAfterSec: 0.35,
+  fadeInSec: 0.75,
+  hideAfterSec: null,
+  fadeOutSec: 0.5,
+  stroke: 'rgba(245, 240, 230, 0.55)',
+  strokeWidth: 1.25,
+  sagFactor: 0.14,
+  maxSagPx: 36,
+}
+
+/**
  * Секция «Pipeline»: только этот файл + `SectionTextOverlay` + `PipelineSection.jsx`.
  *
  * Поля одного элемента `textOverlays[]` — см. `PIPELINE_TEXT_OVERLAY_ITEM_DEFAULTS` и комментарии ниже.
@@ -44,11 +97,16 @@ export const PIPELINE_TEXT_OVERLAY_ITEM_DEFAULTS = {
  *   из Google Fonts в том же файле: `'Lora'`, `'Montserrat'`; классы вида `font-coolvetica` — только в Tailwind-строках `className` / `textClassName`.)
  * - `showAfterSec`, `fadeInSec`; `hideAfterSec`, `fadeOutSec` для автоскрытия.
  *
- * Глобально: `fadeTransitions`, `layoutColumnMaxWidth` (px или `null`),
- * `pipelineCardHeightWidthRatio` — высота карточки = ширина × коэффициент (см. `pipelineCards`).
+ * Глобально: `fadeTransitions` (оверлеи), `pipelineCardFadeTransitions` (строки),
+ * `pipelineChromeFadeTransitions` (рамки и нити), `pipelineCardOutlineDefaults`, `pipelineRopeDefaults`,
+ * `pipelineRopes[]`, `layoutColumnMaxWidth`, …
  */
 export const PIPELINE_SECTION_SETTINGS = {
   fadeTransitions: false,
+  /** Fade-in/out у строк внутри карточек (независимо от `fadeTransitions` оверлеев). */
+  pipelineCardFadeTransitions: true,
+  /** Fade-in/out рамок карточек и нитей между ними. */
+  pipelineChromeFadeTransitions: true,
   layoutColumnMaxWidth: null,
 
   /** Вертикальная зона для карточек: отступ сверху/снизу от края вьюпорта (px). */
@@ -60,56 +118,165 @@ export const PIPELINE_SECTION_SETTINGS = {
    * У отдельной карточки можно задать свой `heightWidthRatio` — перекроет это значение.
    */
   pipelineCardHeightWidthRatio: 0.5,
+  /** Дефолты для каждого элемента `pipelineCards[].rows[]`. */
+  pipelineCardRowDefaults: {
+    ...PIPELINE_CARD_ROW_DEFAULTS,
+    showAfterSec: 0.15,
+    fadeInSec: 0.6,
+  },
+  /** Вертикальный зазор между строками внутри карточки (px); у карточки — `rowGapPx`. */
+  pipelineCardRowGapPx: 8,
+  /** Дефолты появления рамки карточки; у карточки — `outline: { … }`. */
+  pipelineCardOutlineDefaults: {
+    ...PIPELINE_CARD_OUTLINE_DEFAULTS,
+  },
+  /** Дефолты нитей; у карточки — `ropeAfter` (нить к следующей) или `pipelineRopes[i]`. */
+  pipelineRopeDefaults: {
+    ...PIPELINE_ROPE_DEFAULTS,
+  },
+  /**
+   * Опционально: тайминги по каждой нити (0 = между 1-й и 2-й карточкой). Перекрывает `ropeAfter`.
+   * Длина обычно `pipelineCards.length - 1`.
+   */
+  pipelineRopes: null,
 
   /**
-   * Четыре перетаскиваемых прямоугольника (чёрный фон, тонкая белая граница).
-   * Внутри: один крупный текст по центру, под ним — маленькая картинка (`imageUrl`).
+   * Перетаскиваемые прямоугольники (чёрный фон, тонкая белая граница).
+   * Текст — массив **`rows`**: каждый элемент = отдельная строка, по центру, столбиком сверху вниз.
    *
    * Позиция:
    * - Если у **каждой** карточки заданы `initialXPercent` и `initialYPercent` (0–100) —
    *   центр карточки в процентах ширины/высоты **вьюпорта**; длины верёвок считаются по этим местам.
-   * - Иначе — прежняя вертикальная колонка по центру с равными промежутками.
+   * - Иначе — вертикальная колонка по центру с равными промежутками.
    *
-   * Поля: `id`, `text`, `widthPx` (число в px **или** строка `clamp(...)` / `…vw` / `…vh` / `…px`),
-   * высота = ширина × **`heightWidthRatio`** на карточке, если задано число > 0, иначе × **`pipelineCardHeightWidthRatio`**,
-   * `imageUrl` (путь от `public/`), опционально `textClassName`, `imageClassName`, `enabled`.
+   * Карточка: `id`, `widthPx`, `heightWidthRatio`, `rows[]`, `initialXPercent`, `initialYPercent`,
+   * `rowGapPx`, `outline` (рамка), `ropeAfter` (нить к следующей карточке), `enabled`.
    *
-   * Размер текста — внутри `textClassName`, например:
-   * - фиксированный: `text-lg`, `text-xl`, `text-2xl` или `text-[20px]`;
-   * - от вьюпорта: `text-[clamp(14px,3.5vw,22px)]` (мин, предпочтительно от vw, макс);
-   * без `textClassName` — дефолт в `PipelineDraggableCards.jsx` (`clamp(15px,4.2vw,22px)`).
-   * Шрифты: `font-museo-cyrl`, `font-kalissa`, `font-brand`, …; из `public/fonts/` также `font-cc-ultimatum` (лучше с `font-bold` / `font-black`), `font-futura-bk-bt` и `italic` для курсива, `font-coolvetica` / `font-coolvetica-condensed` / `font-coolvetica-compressed`; из Google Fonts — `font-lora`, `font-montserrat`.
+   * Строка (`rows[]`): см. `PIPELINE_CARD_ROW_DEFAULTS` — `text`, `fontSizePx`, `fontFamily`,
+   * `gapBeforePx` (свой отступ сверху, px), …
+   * `fontWeight`, `fontStyle`, `color`, `showAfterSec`, `fadeInSec`, `hideAfterSec`, `fadeOutSec`, …
    */
   pipelineCards: [
     {
       id: 'pipeline-card-1',
-      text: 'Думаем',
-      widthPx: 'clamp(250px, 44vw, 400px)',
-      imageUrl: 'images/furnace.jpg',
+      widthPx: 'clamp(230px, 44vw, 250px)',
+      heightWidthRatio: 0.9,
+      rowGapPx: 0,
+      outline: { showAfterSec: 3, fadeInSec: 2 },
+      ropeAfter: { showAfterSec: 6.2, fadeInSec: 2 },
       initialXPercent: 60,
       initialYPercent: 15,
-      textClassName:
-        'text-center font-brand text-[clamp(45px,5vw,40px)] font-italic tracking-[0.02em] text-white',
+      rows: [
+        {
+          id: 'think',
+          text: 'Мы долго',
+          fontFamily: "'Lora', 'Inter', system-ui, sans-serif",
+          fontSizePx: 'clamp(15px, 4.2vw, 20px)',
+          color: 'rgba(200, 206, 214, 0.88)',
+          showAfterSec: 1,
+          fadeInSec: 0.8,
+        },
+        {
+          id: 'think1',
+          text: 'Думаем',
+          fontSizePx: 'clamp(50px, 5vw, 60px)',
+          showAfterSec: 1.5,
+          fadeInSec: 0.8,
+        },
+        {
+          id: 'think-italic3',
+          fontFamily: "'Lora', system-ui, sans-serif",
+          text: 'Как утяжелить',
+          fontSizePx: 'clamp(17px, 4.5vw, 19px)',
+          color: 'rgba(200, 206, 214, 0.88)',
+          gapBeforePx: 4,
+          showAfterSec: 2.5,
+          fadeInSec: 0.8,
+        },
+        {
+          id: 'think-italic2',
+          fontFamily: "'Kalissa', system-ui, sans-serif",
+          text: 'Вещь',
+          fontSizePx: 'clamp(20px, 8vw, 60px)',
+          gapBeforePx: 4,
+          showAfterSec: 3,
+          fadeInSec: 1,
+        },
+      ],
     },
     {
+
       id: 'pipeline-card-3',
-      text: 'Плавим',
-      widthPx: 'clamp(200px, 52vw, 300px)',
-      imageUrl: 'images/yolandi.png',
-      initialXPercent: 24,
+      widthPx: 'clamp(250px, 52vw, 300px)',
+      heightWidthRatio:0.6,
+      rowGapPx: 0,
+      outline: { showAfterSec: 6.2, fadeInSec: 2 },
+      ropeAfter: { showAfterSec: 9, fadeInSec: 2 },
+      initialXPercent: 36,
       initialYPercent: 45,
-      textClassName:
-        'text-center font-brand text-[clamp(45px,5vw,45px)] font-normal tracking-[0.02em] text-white',
+      rows: [
+        {
+          id: 'collect',
+          fontFamily: "'Lora', 'Inter', system-ui, sans-serif",
+          text: 'Cобираем и',
+          color: 'rgba(200, 206, 214, 0.88)',
+          fontSizePx: 'clamp(18px, 5vw, 20px)',
+          showAfterSec: 4.8,
+          fadeInSec:  0.8,
+        },
+        {
+          id: 'melt',
+          text: 'Плавим',
+          fontSizePx: 'clamp(50px, 5vw, 70px)',
+          showAfterSec: 5.5,
+          fadeInSec:  0.8,
+        },
+        {
+          id: 'metal',
+          fontFamily: "'Kalissa', system-ui, sans-serif",
+          text: 'Металл',
+          color: 'rgba(200, 206, 214, 0.88)',
+          fontSizePx: 'clamp(29px, 5vw, 35px)',
+          showAfterSec: 6.2,
+          fadeInSec:  0.8,
+        },
+      ],
     },
     {
       id: 'pipeline-card-4',
-      text: 'Утяжеляем',
-      widthPx: 'clamp(180px, 48vw, 270px)',
-      imageUrl: 'images/furnace_beautiful.png',
+      widthPx: 'clamp(300px, 48vw, 270px)',
+      heightWidthRatio: 0.6,
+      rowGapPx: 1,
+      outline: { showAfterSec: 9, fadeInSec: 2 },
       initialXPercent: 60,
       initialYPercent: 74,
-      textClassName:
-        'text-center font-brand text-[clamp(45px,5vw,50px)] font-normal tracking-[0.02em] text-white',
+      rows: [
+        {
+          id: 'via_metall',
+          text: 'Металлом',
+          fontFamily: "'Lora', 'Inter', system-ui, sans-serif",
+          color: 'rgba(200, 206, 214, 0.88)',
+          fontSizePx: 'clamp(18px, 5vw, 20px)',
+          showAfterSec: 7,
+          fadeInSec: 0.8,
+        },
+        {
+          id: 'weight',
+          text: 'Утяжеляем',
+          fontSizePx: 'clamp(45px, 5vw, 55px)',
+          showAfterSec: 8,
+          fadeInSec: 0.8,
+        },
+        {
+          id: 'thing',
+          text: 'Штуку',
+          fontFamily: "'Kalissa', system-ui, sans-serif",
+          color: 'rgba(200, 206, 214, 0.88)',
+          fontSizePx: 'clamp(30px, 5vw, 40px)',
+          showAfterSec: 9,
+          fadeInSec: 0.8,
+        },
+      ],
     },
   ],
 
@@ -120,85 +287,7 @@ export const PIPELINE_SECTION_SETTINGS = {
   },
 
   textOverlays: [
-    {
-      id: 'pipeline-intro',
-      fontFamily: "'Lora', 'Inter', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 'clamp(26px, 4.2vw, 48px)',
-      text: 'Мы долго',
-      yPercent: 5,
-      xPercent: 22,
-      xOrigin: 'center',
-      yOrigin: 'top',
-      textAlign: 'center',
-      maxWidthPx: 520,
-      showAfterSec: 0.2,
-      fadeInSec: 0.6,
-    },
-    {
-      id: 'pipeline-hint',
-      fontFamily: "'Lora', system-ui, sans-serif",
-      fontWeight: '800',
-      fontSizePx: 'clamp(17px, 4.5vw, 28px)',
-      color: 'rgba(200, 206, 214, 0.88)',
-      text: 'как утяжелить',
-      yPercent: 19,
-      xPercent: 83,
-      xOrigin: 'center',
-      yOrigin: 'top',
-      textAlign: 'right',
-      maxWidthPx: 420,
-      showAfterSec: 0.55,
-      fadeInSec: 0.55,
-    },
-    {
-      id: 'pipeline-hint1',
-      fontFamily: "'Kalissa', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 'clamp(36px, 8vw, 88px)',
-      color: 'rgba(200, 206, 214, 0.88)',
-      text: 'вещь.',
-      yPercent: 25,
-      xPercent: 78,
-      xOrigin: 'center',
-      yOrigin: 'top',
-      textAlign: 'center',
-      maxWidthPx: 420,
-      showAfterSec: 0.55,
-      fadeInSec: 0.55,
-    },
-    {
-      id: 'pipeline-hint2',
-      fontFamily: "'Lora', 'Inter', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 'clamp(16px, 4vw, 24px)',
-      color: 'rgba(200, 206, 214, 0.88)',
-      text: 'Cобираем и ',
-      yPercent: 33,
-      xPercent: 22,
-      xOrigin: 'center',
-      yOrigin: 'top',
-      textAlign: 'center',
-      maxWidthPx: 420,
-      showAfterSec: 0.55,
-      fadeInSec: 0.55,
-    },
-    {
-      id: 'pipeline-hint3',
-      fontFamily: "'Kalissa', system-ui, sans-serif",
-      fontWeight: '400',
-      fontSizePx: 40,
-      color: 'rgba(200, 206, 214, 0.88)',
-      text: 'Металл.',
-      yPercent: 53,
-      xPercent: 78,
-      xOrigin: 'center',
-      yOrigin: 'top',
-      textAlign: 'center',
-      maxWidthPx: 420,
-      showAfterSec: 0.55,
-      fadeInSec: 0.55,
-    },
+
     {
       fontSizePx: 'clamp(22px, 4.5vw, 44px)',
       yPercent: 60,

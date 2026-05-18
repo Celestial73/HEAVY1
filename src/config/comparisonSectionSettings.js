@@ -113,18 +113,18 @@ export const COMPARISON_SECTION_SETTINGS = {
       {
         text: 'Мы делаем вещи тяжелее',
         delay: 0.7,
-        className: 'font-st-rome text-white text-4xl text-right sm:text-xl',
+        className: 'font-st-rome text-white text-3xl text-right sm:text-xl',
       },
       {
         text: 'Реально тупо увеличиваем вес вещей',
         delay: 0.88,
-        className: 'font-montserrat text-m lg:text-l text-white/75',
+        className: 'font-montserrat text-s lg:text-s text-white/75',
         style: { fontWeight: 400 },
       },
       {
         text: 'И всё.',
         delay: 1.06,
-        className: 'font-kalissa text-right text-7xl sm:text-7xl md:text-7xl lg:text-8xl t racking-[0.2em] text-white/50',
+        className: 'font-kalissa text-right text-7xl sm:text-7xl md:text-7xl lg:text-8xl racking-[0.2em] text-white/50',
       },
     ],
   },

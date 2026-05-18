@@ -292,7 +292,7 @@ export default function TeamAndCTASection() {
         </div>
 
         {hero?.enabled !== false ? (
-          <header className="pointer-events-none absolute left-0 top-0 z-10 px-6 pt-10 sm:px-10 sm:pt-12">
+          <header className="pointer-events-none absolute left-0 top-0 z-10 px-6 pt-2 sm:px-10 sm:pt-12">
             <div className="animate-fade-up" style={{ animationDelay: `${intro.hero.delay}s` }}>
               <h1
                 className={hero.titleClassName}

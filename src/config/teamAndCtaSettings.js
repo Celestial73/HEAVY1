@@ -15,7 +15,7 @@ export const TEAM_AND_CTA_SETTINGS = {
      */
     containerClassName: 'relative min-h-svh w-full',
     /** Нижний отступ сцены (портреты + кнопка). Строка CSS, обычно `clamp(...)`. */
-    containerPaddingBottom: 'clamp(14rem, calc(52vh + 4rem), 36rem)',
+    containerPaddingBottom: 'clamp(14rem, calc(0), 36rem)',
   },
 
   /**
@@ -38,9 +38,9 @@ export const TEAM_AND_CTA_SETTINGS = {
     enabled: true,
     title: 'Команда',
     titleClassName: 'font-brand tracking-[0.06em] text-white',
-    titleFontSize: 'clamp(1rem, 6vw, 10rem)',
+    titleFontSize: 'clamp(1rem, 10vw, 10rem)',
     subtitle: '',
-    subtitleClassName: 'mt-2 max-w-2xl leading-relaxed text-zinc-400',
+    subtitleClassName: 'max-w-2xl leading-relaxed text-zinc-400',
     subtitleFontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
   },
 
@@ -106,7 +106,7 @@ export const TEAM_AND_CTA_SETTINGS = {
     /** Внутренний путь (`/pipeline` и т.д.) или `mailto:…` / `https://…` */
     to: 'https://t.me/bailem0s',
     buttonClassName:
-      'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-st-rome uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
+      'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-brand uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
     buttonFontSize: 'clamp(0.625rem, 2.8vw, 0.875rem)',
   },
 }

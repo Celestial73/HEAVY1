@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
+import { preloadAppFonts } from './utils/fontLoader.js'
 import ComparisonSection from './components/ComparisonSection'
 import PipelineSection from './components/PipelineSection'
 import ProcessSection from './components/ProcessSection'
@@ -10,6 +12,10 @@ import VisitLogger from './components/VisitLogger.jsx'
 
 function App() {
   const location = useLocation()
+
+  useEffect(() => {
+    preloadAppFonts()
+  }, [])
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">

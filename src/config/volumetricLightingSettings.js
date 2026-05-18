@@ -211,7 +211,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       id: 'wooden-cross',
       type: 'glb',
       gltfUrl: '/models/wooden_cross.glb',
-      gltfScale: 0.05,
+      gltfScale: 0.075,
       position: [-0.8, -2.35, -2.2],
       hitbox: { halfExtents: [12, 20, 20] },
       castShadow: true,

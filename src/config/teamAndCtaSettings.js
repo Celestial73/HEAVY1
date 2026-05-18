@@ -13,7 +13,9 @@ export const TEAM_AND_CTA_SETTINGS = {
      * Запас снизу: портреты/подписи + место под закреплённую кнопку.
      * Доп. пустоту **под подписью последней фото** задайте у неё `spaceBelowCaptionVh`.
      */
-    containerClassName: 'relative min-h-svh w-full pb-[calc(52vh+6rem)]',
+    containerClassName: 'relative min-h-svh w-full',
+    /** Нижний отступ сцены (портреты + кнопка). Строка CSS, обычно `clamp(...)`. */
+    containerPaddingBottom: 'clamp(14rem, calc(52vh + 4rem), 36rem)',
   },
 
   /**
@@ -35,11 +37,11 @@ export const TEAM_AND_CTA_SETTINGS = {
   hero: {
     enabled: true,
     title: 'Команда',
-    titleClassName:
-      'font-brand text-2xl  tracking-[0.06em] text-white sm:text-5xl md:text-6xl',
+    titleClassName: 'font-brand tracking-[0.06em] text-white',
+    titleFontSize: 'clamp(1rem, 6vw, 10rem)',
     subtitle: '',
-    subtitleClassName:
-      'mt-4 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg',
+    subtitleClassName: 'mt-2 max-w-2xl leading-relaxed text-zinc-400',
+    subtitleFontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
   },
 
   /**
@@ -48,32 +50,28 @@ export const TEAM_AND_CTA_SETTINGS = {
    * - `xPercent`/`yPercent`: 0..100 (проценты по высоте/ширине «сцены» портретов; сцена ≥ 1× viewport, снизу + padding у `layout.containerClassName`).
    * - `xOrigin`/`yOrigin`: к какой точке блока привязать координату (left/center/right и top/center/bottom).
    *   Если не задано — выбирается автоматически по ближайшей четверти (0/25/50/75/100).
-   * - `widthVw`: ширина блока в vw — **число** или **объект** (mobile-first, как Tailwind):
-   *   `{ default?: number, sm?: number, md?: number, lg?: number, xl?: number, '2xl'?: number }`
-   *   (`default` можно писать как `base`). Пороги в px: sm 640, md 768, lg 1024, xl 1280, 2xl 1536.
-   * - `maxWidthPx`: потолок ширины в px (опционально).
+   * - `width`: ширина блока — строка CSS (`clamp(16rem, 85vw, 42rem)` и т.п.), предпочтительно.
+   * - `widthVw`: устаревший вариант (число или mobile-first объект); если задан `width`, не используется.
+   * - `maxWidthPx` / `maxWidth`: потолок ширины (число px или CSS-строка).
+   * - `captionFontSize`: размер подписи (`clamp(...)`).
    * - `aspectRatio`: CSS `aspect-ratio` (например `3/4`). Если пусто — используется `heightVh`.
    * - `objectFit`: для PNG с прозрачностью обычно нужно `contain` (ничего не обрезается).
    * - `delay` (опционально): задержка fade-in этого портрета в секундах; иначе считается из `intro.portraits`.
-   * - `spaceBelowCaptionVh` (опционально, у **любого** элемента `portraits[]`): отступ снизу в `vh`
-   *   под подписью этого кадра. Без подписи — отступ под всем блоком `figure`.
-   * - `captionClassName`: mobile-first (`text-sm md:text-lg lg:text-2xl`). Не ставьте на десктопе
-   *   меньший `text-*`, чем базовый (например `text-3xl` + `lg:text-2xl` уменьшит шрифт на lg).
+   * - `spaceBelowCaption` / `spaceBelowCaptionVh`: отступ под подписью (CSS-строка или число vh).
+   * - `captionClassName`: семейство, цвет, отступы — без responsive `text-*` (размер в `captionFontSize`).
    */
   portraits: [
     {
       imageUrl: 'images/yolandi_beautiful_1.png',
       imageAlt: 'Yolandi',
       caption: 'Йоланди',
-      captionClassName: 'font-kalissa mt-4 pr-4 text-2xl text-zinc-400 md:text-xl lg:text-5xl',
+      captionClassName: 'font-kalissa mt-4 pr-4 text-zinc-400',
+      captionFontSize: 'clamp(1.25rem, 2.8vw, 100rem)',
       xPercent: 120,
       yPercent: 9,
       xOrigin: 'right',
       yOrigin: 'top',
-      widthVw: {
-        default: 85,  // или ключ `base`
-        lg: 50,
-      },
+      width: 'clamp(30rem, 60vw, 1000rem)',
       aspectRatio: '4/3',
       objectFit: 'contain',
     },
@@ -81,18 +79,16 @@ export const TEAM_AND_CTA_SETTINGS = {
       imageUrl: 'images/dyatlov_beautiful_1.png',
       imageAlt: 'Furnace',
       caption: 'А.С. Дятлов',
-      captionClassName: 'font-kalissa pl-4 mt-2 text-zinc-400 text-2xl md:text-xl lg:text-5xl',
+      captionClassName: 'font-kalissa pl-4 mt-2 text-zinc-400',
+      captionFontSize: 'clamp(1.25rem, 2.8vw, 100rem)',
       xPercent: 1,
       yPercent: 40,
       xOrigin: 'left',
       yOrigin: 'top',
-      widthVw: {
-        default: 80,  // или ключ `base`
-        lg: 54,
-      },
+      width: 'clamp(20rem, 60vw, 1000rem)',
       aspectRatio: '3/4',
       objectFit: 'contain',
-      spaceBelowCaptionVh: 10,
+      spaceBelowCaption: 'clamp(2rem, 10vh, 8rem)',
     },
   ],
 
@@ -110,6 +106,7 @@ export const TEAM_AND_CTA_SETTINGS = {
     /** Внутренний путь (`/pipeline` и т.д.) или `mailto:…` / `https://…` */
     to: 'https://t.me/bailem0s',
     buttonClassName:
-      'mb-4 inline-flex h-12 w-full max-w-md items-center justify-center rounded-full border border-white/20 bg-white px-8 text-sm font-semibold uppercase tracking-[0.2em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:w-auto',
+      'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-semibold uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
+    buttonFontSize: 'clamp(0.625rem, 2.8vw, 0.875rem)',
   },
 }

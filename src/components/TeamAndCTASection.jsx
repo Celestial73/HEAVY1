@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { TEAM_AND_CTA_SETTINGS as defaults } from '../config/teamAndCtaSettings.js'
+import { toCssLength } from '../utils/cssLength.js'
 
 const QUARTILE_YP = [0, 25, 50, 75, 100]
 const QUARTILE_XP = [0, 25, 50, 75, 100]
@@ -52,25 +53,6 @@ function resolveWidthVwFromSpec(spec, innerWidth, fallback = WIDTH_VW_FALLBACK) 
   if (innerWidth >= 1280 && typeof spec.xl === 'number' && Number.isFinite(spec.xl)) v = spec.xl
   if (innerWidth >= 1536 && typeof spec['2xl'] === 'number' && Number.isFinite(spec['2xl'])) v = spec['2xl']
   return v
-}
-
-function useResponsiveWidthVw(spec, fallback = WIDTH_VW_FALLBACK) {
-  const [vw, setVw] = useState(() =>
-    resolveWidthVwFromSpec(
-      spec,
-      typeof window !== 'undefined' ? window.innerWidth : 1024,
-      fallback,
-    ),
-  )
-
-  useEffect(() => {
-    const onResize = () => setVw(resolveWidthVwFromSpec(spec, window.innerWidth, fallback))
-    onResize()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [spec, fallback])
-
-  return vw
 }
 
 function portraitPositionStyle(portrait, insetPx) {
@@ -128,30 +110,61 @@ function resolvePublicAssetUrl(url) {
   return `${normalizedBase}${normalizedUrl}`
 }
 
+function resolvePortraitWidth(portrait, viewportWidth) {
+  const widthClamp = toCssLength(portrait?.width)
+  const maxWidthCss =
+    toCssLength(portrait?.maxWidth) ??
+    (typeof portrait?.maxWidthPx === 'number' &&
+    Number.isFinite(portrait.maxWidthPx) &&
+    portrait.maxWidthPx > 0
+      ? `${portrait.maxWidthPx}px`
+      : null)
+
+  if (widthClamp) {
+    return maxWidthCss ? `min(${widthClamp}, ${maxWidthCss})` : widthClamp
+  }
+
+  const w = resolveWidthVwFromSpec(portrait?.widthVw, viewportWidth, WIDTH_VW_FALLBACK)
+  const legacy = `${w}vw`
+  return maxWidthCss ? `min(${legacy}, ${maxWidthCss})` : legacy
+}
+
 function PortraitBlock({ portrait, frameClassName, stageInsetPx, animationDelaySec }) {
   const { imageUrl, imageAlt, caption, captionClassName } = portrait ?? {}
-  const w = useResponsiveWidthVw(portrait?.widthVw, WIDTH_VW_FALLBACK)
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024,
+  )
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   const src = imageUrl ? resolvePublicAssetUrl(imageUrl) : null
   if (!src) return null
-  const maxPx =
-    typeof portrait?.maxWidthPx === 'number' && Number.isFinite(portrait.maxWidthPx) && portrait.maxWidthPx > 0
-      ? portrait.maxWidthPx
-      : null
-  const figureWidth = maxPx != null ? `min(${w}vw, ${maxPx}px)` : `${w}vw`
+
+  const figureWidth = resolvePortraitWidth(portrait, viewportWidth)
 
   const useAspect = typeof portrait?.aspectRatio === 'string' && portrait.aspectRatio.trim().length > 0
   const heightVh =
     typeof portrait?.heightVh === 'number' && Number.isFinite(portrait.heightVh) ? portrait.heightVh : null
-  const maxHvh =
-    typeof portrait?.maxHeightVh === 'number' && Number.isFinite(portrait.maxHeightVh) ? portrait.maxHeightVh : null
+  const maxHeightCss =
+    toCssLength(portrait?.maxHeight) ??
+    (typeof portrait?.maxHeightVh === 'number' && Number.isFinite(portrait.maxHeightVh)
+      ? `${portrait.maxHeightVh}vh`
+      : undefined)
 
   const frameStyle = useAspect
     ? {
         aspectRatio: portrait.aspectRatio.trim(),
         width: '100%',
-        maxHeight: maxHvh != null ? `${maxHvh}vh` : undefined,
+        maxHeight: maxHeightCss,
       }
-    : { width: '100%', height: `${heightVh ?? 20}vh` }
+    : {
+        width: '100%',
+        height: toCssLength(portrait?.height) ?? (heightVh != null ? `${heightVh}vh` : '20vh'),
+      }
 
   const posStyle = portraitPositionStyle(portrait, stageInsetPx)
   const captionAlign =
@@ -166,10 +179,13 @@ function PortraitBlock({ portrait, frameClassName, stageInsetPx, animationDelayS
       ? portrait.objectFit
       : 'contain'
 
-  const spaceBelowCaptionVh =
-    typeof portrait?.spaceBelowCaptionVh === 'number' && Number.isFinite(portrait.spaceBelowCaptionVh)
-      ? portrait.spaceBelowCaptionVh
-      : null
+  const spaceBelowCaptionCss =
+    toCssLength(portrait?.spaceBelowCaption) ??
+    (typeof portrait?.spaceBelowCaptionVh === 'number' && Number.isFinite(portrait.spaceBelowCaptionVh)
+      ? `${portrait.spaceBelowCaptionVh}vh`
+      : undefined)
+
+  const captionFontSize = toCssLength(portrait?.captionFontSize)
 
   const delayS =
     typeof animationDelaySec === 'number' && Number.isFinite(animationDelaySec) ? animationDelaySec : 0
@@ -183,7 +199,7 @@ function PortraitBlock({ portrait, frameClassName, stageInsetPx, animationDelayS
       style={{
         ...posStyle,
         width: figureWidth,
-        marginBottom: spaceBelowCaptionVh != null && !caption ? `${spaceBelowCaptionVh}vh` : undefined,
+        marginBottom: spaceBelowCaptionCss != null && !caption ? spaceBelowCaptionCss : undefined,
       }}
     >
       <div className="animate-fade-up w-full" style={{ animationDelay: `${delayS}s` }}>
@@ -200,9 +216,10 @@ function PortraitBlock({ portrait, frameClassName, stageInsetPx, animationDelayS
           {caption ? (
             <figcaption
               className={`w-full ${captionAlign} ${captionClassName ?? ''}`}
-              style={
-                spaceBelowCaptionVh != null ? { marginBottom: `${spaceBelowCaptionVh}vh` } : undefined
-              }
+              style={{
+                ...(captionFontSize ? { fontSize: captionFontSize } : {}),
+                ...(spaceBelowCaptionCss != null ? { marginBottom: spaceBelowCaptionCss } : {}),
+              }}
             >
               {caption}
             </figcaption>
@@ -245,9 +262,16 @@ export default function TeamAndCTASection() {
       ? portraitIntro.staggerSec
       : 0
 
+  const containerPaddingBottom = toCssLength(layout.containerPaddingBottom)
+  const titleFontSize = toCssLength(hero?.titleFontSize)
+  const subtitleFontSize = toCssLength(hero?.subtitleFontSize)
+
   return (
     <section id={layout.sectionId} className={layout.sectionClassName}>
-      <div className={layout.containerClassName}>
+      <div
+        className={layout.containerClassName}
+        style={containerPaddingBottom ? { paddingBottom: containerPaddingBottom } : undefined}
+      >
         <div className={portraitsStageClassName}>
           {portraitList.map((portrait, i) => {
             const ownDelay = portrait?.delay
@@ -270,8 +294,20 @@ export default function TeamAndCTASection() {
         {hero?.enabled !== false ? (
           <header className="pointer-events-none absolute left-0 top-0 z-10 px-6 pt-10 sm:px-10 sm:pt-12">
             <div className="animate-fade-up" style={{ animationDelay: `${intro.hero.delay}s` }}>
-              <h1 className={hero.titleClassName}>{hero.title}</h1>
-              {hero.subtitle ? <p className={hero.subtitleClassName}>{hero.subtitle}</p> : null}
+              <h1
+                className={hero.titleClassName}
+                style={titleFontSize ? { fontSize: titleFontSize } : undefined}
+              >
+                {hero.title}
+              </h1>
+              {hero.subtitle ? (
+                <p
+                  className={hero.subtitleClassName}
+                  style={subtitleFontSize ? { fontSize: subtitleFontSize } : undefined}
+                >
+                  {hero.subtitle}
+                </p>
+              ) : null}
             </div>
           </header>
         ) : null}

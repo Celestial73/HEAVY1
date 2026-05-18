@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { animated, useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { COMPARISON_SECTION_SETTINGS as defaults } from '../config/comparisonSectionSettings.js'
+import { preloadAppFonts, preloadComparisonFonts } from '../utils/fontLoader.js'
 import NextNavLink from './NextNavLink'
 
 function FeatherIcon() {
@@ -461,6 +462,7 @@ function ComparisonCard({ settings }) {
 
 export default function ComparisonSection() {
   const [settings, setSettings] = useState(defaults)
+  const [fontsReady, setFontsReady] = useState(false)
 
   useEffect(() => {
     if (!import.meta.hot) return undefined
@@ -470,10 +472,25 @@ export default function ComparisonSection() {
     return undefined
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    setFontsReady(false)
+    Promise.all([preloadAppFonts(), preloadComparisonFonts(settings)]).then(() => {
+      if (!cancelled) setFontsReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [settings])
+
   const { layout, text, cta, intro } = settings
 
   return (
-    <section id={layout.sectionId} className={layout.sectionClassName}>
+    <section
+      id={layout.sectionId}
+      className={layout.sectionClassName}
+      style={{ visibility: fontsReady ? 'visible' : 'hidden' }}
+    >
       <div className={layout.containerClassName}>
         {/* 65%: только текст. */}
         <div className={layout.textBlockClassName}>

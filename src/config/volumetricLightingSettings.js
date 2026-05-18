@@ -98,22 +98,62 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
   placement: {
     /** Случайно расставлять при загрузке. false — использовать заданные position. */
     random: true,
-    /** Зона размещения по горизонтали (X/Z) — куб ~4×4 вокруг центра сцены. */
-    area: { minX: -2, maxX: 2, minZ: -2, maxZ: 2 },
+    /** Зона размещения по горизонтали (X/Z) — чуть шире под крупные hitbox-ы. */
+    area: { minX: -2.5, maxX: 2.5, minZ: -2.5, maxZ: 2.5 },
     /**
      * Высота: предметы всегда висят в воздухе и в кадре.
      * Пол на y = floor.positionY (-3), volumetric box до y ≈ 7.
      */
     minY: -2,
     maxY: 3,
-    /** Минимальная 3D-дистанция между предметами (старается, не гарантирует). */
+    /**
+     * Зазор между hitbox-ами при расстановке (м). См. `hitbox` у каждого spinnable.
+     * @deprecated Используйте hitboxGap; оставлено для совместимости.
+     */
     minDistance: 1.6,
+    /** Минимальный зазор между гранями hitbox-ов (м). */
+    hitboxGap: 0.2,
+    /** Глобальный множитель размера всех hitbox (1.2 = на 20% больше). */
+    hitboxScale: 1,
+    /** Куб: все стороны = max(hx, hy, hz) после hitboxScale. */
+    hitboxCubicize: true,
+    /** Попыток найти позицию без пересечений. */
+    maxAttempts: 80,
+    /** Множитель для авто-hitbox из bounds модели (если hitbox не задан). */
+    autoHitboxPadding: 1.25,
+    /** Делает авто-hitbox кубическим с запасом под вращение. */
+    hitboxRotationFactor: 1.35,
+    /** Показать полупрозрачные кубы hitbox для настройки. Выключите перед продакшеном. */
+    showHitboxes: false,
     /** Случайная начальная ориентация. */
     randomizeRotation: true,
     /** Случайный масштаб каждого предмета (0.5 — мелкий, 1 — исходный). */
     randomScale: false,
     scaleMin: 0.5,
     scaleMax: 1,
+  },
+
+  /** Цвета/прозрачность debug-кубов hitbox (см. placement.showHitboxes). */
+  hitboxDebug: {
+    ok: {
+      fillColor: 0x44ff88,
+      fillOpacity: 0.2,
+      edgeColor: 0x66ffaa,
+      edgeOpacity: 0.85,
+    },
+    collision: {
+      fillColor: 0xff4444,
+      fillOpacity: 0.25,
+      edgeColor: 0xff6666,
+      edgeOpacity: 0.9,
+    },
+    /** Зона расстановки (placement.area + minY/maxY). */
+    placementArea: {
+      fillColor: 0x4488ff,
+      fillOpacity: 0.1,
+      edgeColor: 0x6699ff,
+      edgeOpacity: 0.55,
+    },
   },
 
   /**
@@ -157,58 +197,84 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
    * Для `type: 'gltf' | 'glb'`: используйте `gltfUrl` и опционально `gltfScale`.
    * material: опции MeshStandardMaterial (color, roughness, metalness, side: 'front'|'back'|'double').
    * sensitivity (опц.): { x, y, z } переопределяет interaction.dragSensitivity*.
-   * alwaysInclude: true — объект добавляется всегда, сверх случайной выборки.
+   * hitbox: { halfExtents: [hx, hy, hz] } | { size: [w, h, d] } — куб для коллизий при расстановке.
+   * alwaysInclude: true — объект добавляется всегда, сверх randomLarge/SmallSpinnablesCount.
    */
-  randomSpinnablesCount: 4,
-  spinnables: [
+  /** Сколько случайных large брать из `spinnablesLarge` (alwaysInclude не считается). */
+  randomLargeSpinnablesCount: 1,
+  /** Сколько случайных small брать из `spinnablesSmall`. */
+  randomSmallSpinnablesCount: 3,
+
+  spinnablesLarge: [
+
     {
-      id: 'rock',
+      id: 'wooden-cross',
       type: 'glb',
-      gltfUrl: '/models/cracked_gray_rock.glb',
-      gltfScale: 0.9,
-      position: [0.5, -2.35, 2.1],
+      gltfUrl: '/models/wooden_cross.glb',
+      gltfScale: 0.05,
+      position: [-0.8, -2.35, -2.2],
+      hitbox: { halfExtents: [12, 20, 20] },
+      castShadow: true,
+    },
+    {
+      id: 'heavy-rusty-anchor',
+      type: 'glb',
+      gltfUrl: '/models/heavy_rusty_anchor.glb',
+      gltfScale: 0.7,
+      position: [1.1, -2.35, 2.4],
+      hitbox: { halfExtents: [2, 2, 2] },
       castShadow: true,
     },
     {
       id: 'ps1-low-poly-moon',
       type: 'glb',
       gltfUrl: '/models/ps1_style_low_poly_moon.glb',
-      gltfScale: 0.8,
+      gltfScale: 1.5,
       position: [-1.7, -2.35, -1.5],
+      hitbox: { halfExtents: [1, 1, 1] },
+      castShadow: true,
+    },
+
+  ],
+
+  spinnablesSmall: [
+    {
+      id: 'asian-elephant',
+      type: 'glb',
+      gltfUrl: '/models/asian_elephant.glb',
+      gltfScale: 0.8,
+      position: [2.2, -2.35, 1.7],
+      hitbox: { halfExtents: [1.15, 1, 1.35] },
+      castShadow: true,
+    },
+    {
+      
+      id: 'rock',
+      type: 'glb',
+      gltfUrl: '/models/cracked_gray_rock.glb',
+      gltfScale: 0.9,
+      position: [0.5, -2.35, 2.1],
+      hitbox: { halfExtents: [0.75, 0.65, 0.75] },
+      castShadow: true,
+    },
+
+    {
+      id: 'bad-bell',
+      type: 'glb',
+      gltfUrl: '/models/bad-_bell-04lp.glb',
+      gltfScale: 0.01,
+      position: [1.8, -2.35, -1.2],
+      hitbox: { halfExtents: [55, 55, 55] },
       castShadow: true,
     },
     {
       id: 'la-bellesa',
       type: 'glb',
       gltfUrl: '/models/la_bellesa_dominant_la_forca_-_game_ready.glb',
-      gltfScale: 0.8,
+      gltfScale: 0.5,
       position: [-2.2, -2.35, 1.2],
+      hitbox: { halfExtents: [2, 2, 0.85] },
       castShadow: true,
-    },
-    {
-      id: 'bad-bell',
-      type: 'glb',
-      gltfUrl: '/models/bad-_bell-04lp.glb',
-      gltfScale: 0.8,
-      position: [1.8, -2.35, -1.2],
-      castShadow: true,
-    },
-    {
-      id: 'wooden-cross',
-      type: 'glb',
-      gltfUrl: '/models/wooden_cross.glb',
-      gltfScale: 0.8,
-      position: [-0.8, -2.35, -2.2],
-      castShadow: true,
-    },
-    {
-      id: 'asian-elephant',
-      type: 'glb',
-      gltfUrl: '/models/asian_elephant.glb',
-      gltfScale: 1,
-      position: [2.2, -2.35, 1.7],
-      castShadow: true,
-      alwaysInclude: true,
     },
   ],
 
@@ -226,6 +292,19 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     distance: 100,
     castShadow: true,
     initialPosition: [0, 1.4, 0],
+  },
+
+  /**
+   * Point light над камерой (дочерний объект camera, движется вместе с ней).
+   * offset в локальных осях камеры: y вверх от объектива.
+   */
+  cameraPointLight: {
+    enabled: true,
+    color: 0xffffff,
+    intensity: 50,
+    distance: 0,
+    castShadow: false,
+    offset: [0, 2, 0],
   },
 
   spotLight: {
@@ -335,9 +414,9 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     /** Анимация появления бренд-заголовка построчно. */
     brandIntro: {
       /** Задержка перед началом первой строки (сек). */
-      initialDelay: 2,
+      initialDelay: 1,
       /** Промежуток между соседними строками (сек). */
-      lineStagger: 0.3,
+      lineStagger: 0.2,
       /**
        * Позиция и размер бренд-текста. Можно задавать любые CSS-значения:
        * `px`, `%`, `vw/vh`, `clamp(...)`, `calc(...)`.
@@ -354,10 +433,10 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
     },
     /** Анимация появления кнопок управления (refresh, next). */
     controlsIntro: {
-      /** Задержка перед появлением первой кнопки (сек). Должна быть больше brandIntro. */
-      initialDelay: 4,
+      /** Задержка перед появлением первой кнопки (сек). После старта второй строки заголовка. */
+      initialDelay: 2,
       /** Промежуток между соседними кнопками (сек). */
-      stagger: 0.2,
+      stagger: 0.1,
     },
     /** Кнопка перехода на следующую страницу (оверлей снизу). */
     nextLink: {

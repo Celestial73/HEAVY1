@@ -20,6 +20,12 @@ import { bayer16 } from 'three/addons/tsl/math/Bayer.js'
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
 import { VOLUMETRIC_LIGHTING_SETTINGS as volumetricLightingDefaults } from '../config/volumetricLightingSettings.js'
 import { VOLUMETRIC_SECTION_SPLASH } from '../config/sectionSplashSettings.js'
+import {
+  attachHitboxDebugHelper,
+  createPlacementAreaDebugHelper,
+  placeSpinnableMesh,
+  selectSpinnablesForScene,
+} from '../utils/spinnablePlacement.js'
 import NextNavLink from './NextNavLink'
 import SectionSplashOverlay from './SectionSplashOverlay.jsx'
 
@@ -147,15 +153,6 @@ function resolvePublicAssetUrl(url) {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`
   const normalizedUrl = url.startsWith('/') ? url.slice(1) : url
   return `${normalizedBase}${normalizedUrl}`
-}
-
-function pickRandomItems(items, count) {
-  const pool = [...items]
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[pool[i], pool[j]] = [pool[j], pool[i]]
-  }
-  return pool.slice(0, Math.max(0, Math.min(count, pool.length)))
 }
 
 async function createSpinnableObject(cfg) {
@@ -296,6 +293,11 @@ export default function VolumetricLightingSection() {
     typeof brandIntro.lineStagger === 'number' && Number.isFinite(brandIntro.lineStagger)
       ? brandIntro.lineStagger
       : 0.3
+  const splashBlocking =
+    VOLUMETRIC_SECTION_SPLASH?.enabled !== false &&
+    (!sceneReady || VOLUMETRIC_SECTION_SPLASH?.forceVisible === true)
+  const contentAnimReady = sceneReady && !splashBlocking
+  const controlsIntro = settings.overlay.controlsIntro ?? {}
 
   useEffect(() => {
     if (!import.meta.hot) return undefined
@@ -361,6 +363,21 @@ export default function VolumetricLightingSection() {
       )
       camera.position.set(...S.camera.position)
 
+      let cameraPointLight = null
+      const cameraLightOffset = new THREE.Vector3()
+      const cpl = S.cameraPointLight
+      if (cpl?.enabled !== false) {
+        const offset = cpl.offset ?? [0, 2, 0]
+        cameraLightOffset.set(offset[0], offset[1], offset[2])
+        cameraPointLight = new THREE.PointLight(
+          cpl.color ?? 0xffffff,
+          cpl.intensity ?? 1,
+          cpl.distance ?? 0,
+        )
+        cameraPointLight.castShadow = cpl.castShadow ?? false
+        scene.add(cameraPointLight)
+      }
+
       controls = new OrbitControls(camera, renderer.domElement)
       controls.minDistance = S.orbitControls.minDistance
       controls.maxDistance = S.orbitControls.maxDistance
@@ -405,78 +422,30 @@ export default function VolumetricLightingSection() {
 
       const placement = S.placement || { random: false }
       const physics = S.physics || { enabled: false }
-      const placedPositions = []
+
+      if (placement.showHitboxes) {
+        const areaHelper = createPlacementAreaDebugHelper(placement, S.hitboxDebug)
+        if (areaHelper) scene.add(areaHelper)
+      }
+
+      const placedHitboxes = []
       const spinnables = []
-      const randomCount = S.randomSpinnablesCount ?? 4
-      const allSpinnables = S.spinnables ?? []
-      const fixedSpinnables = allSpinnables.filter((cfg) => cfg.alwaysInclude === true)
-      const randomSpinnables = allSpinnables.filter((cfg) => cfg.alwaysInclude !== true)
-      const selectedSpinnables = [
-        ...fixedSpinnables,
-        ...pickRandomItems(randomSpinnables, randomCount),
-      ]
+      const selectedSpinnables = selectSpinnablesForScene(S)
       for (const cfg of selectedSpinnables) {
         const mesh = await createSpinnableObject(cfg)
+        const placed = placeSpinnableMesh(mesh, cfg, placement, placedHitboxes)
 
-        let x = cfg.position[0]
-        let y = cfg.position[1]
-        let z = cfg.position[2]
+        mesh.position.set(placed.x, placed.y, placed.z)
+        mesh.rotation.set(0, 0, 0)
+        placedHitboxes.push(placed.worldBox)
 
-        if (placement.random) {
-          const area = placement.area
-          const minDistSq = (placement.minDistance ?? 0) ** 2
-          let bestX = x
-          let bestY = y
-          let bestZ = z
-          let bestDistSq = -Infinity
-
-          for (let attempt = 0; attempt < 32; attempt += 1) {
-            const candX = THREE.MathUtils.lerp(area.minX, area.maxX, Math.random())
-            const candY = THREE.MathUtils.lerp(placement.minY, placement.maxY, Math.random())
-            const candZ = THREE.MathUtils.lerp(area.minZ, area.maxZ, Math.random())
-            let nearestSq = Infinity
-            for (const p of placedPositions) {
-              const dSq =
-                (p.x - candX) ** 2 + (p.y - candY) ** 2 + (p.z - candZ) ** 2
-              if (dSq < nearestSq) nearestSq = dSq
-            }
-            if (nearestSq >= minDistSq) {
-              bestX = candX
-              bestY = candY
-              bestZ = candZ
-              break
-            }
-            if (nearestSq > bestDistSq) {
-              bestDistSq = nearestSq
-              bestX = candX
-              bestY = candY
-              bestZ = candZ
-            }
-          }
-
-          x = bestX
-          y = bestY
-          z = bestZ
-          placedPositions.push({ x, y, z })
+        const visualRot = placed.visualRotation
+        if (visualRot) {
+          mesh.rotation.set(visualRot.x, visualRot.y, visualRot.z)
         }
 
-        mesh.position.set(x, y, z)
-
-        if (placement.random && placement.randomScale) {
-          const s = THREE.MathUtils.lerp(
-            placement.scaleMin ?? 1,
-            placement.scaleMax ?? 1,
-            Math.random(),
-          )
-          mesh.scale.setScalar(s)
-        }
-
-        if (placement.randomizeRotation) {
-          mesh.rotation.set(
-            Math.random() * Math.PI * 2,
-            Math.random() * Math.PI * 2,
-            Math.random() * Math.PI * 2,
-          )
+        if (placement.showHitboxes) {
+          attachHitboxDebugHelper(mesh, placed.halfExtents, S.hitboxDebug, placed.placementOk)
         }
 
         scene.add(mesh)
@@ -505,6 +474,7 @@ export default function VolumetricLightingSection() {
         spinnables.push({
           cfg,
           mesh,
+          hitboxHalfExtents: placed.halfExtents,
           radius,
           linearVelocity,
           velocityX: 0,
@@ -779,6 +749,11 @@ export default function VolumetricLightingSection() {
         spotLight.lookAt(0, 0, 0)
 
         controls.update()
+
+        if (cameraPointLight) {
+          cameraPointLight.position.copy(cameraLightOffset).applyMatrix4(camera.matrixWorld)
+        }
+
         renderPipeline.render()
       })
 
@@ -819,10 +794,12 @@ export default function VolumetricLightingSection() {
           type="button"
           onClick={() => window.location.reload()}
           aria-label="Обновить страницу"
-          style={{
-            animationDelay: `${settings.overlay.controlsIntro.initialDelay}s`,
-          }}
-          className="pointer-events-auto group inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition hover:bg-black/70 active:scale-[0.98]"
+          style={
+            contentAnimReady
+              ? { animationDelay: `${controlsIntro.initialDelay ?? 0}s` }
+              : undefined
+          }
+          className={`pointer-events-auto group inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition hover:bg-black/70 active:scale-[0.98] ${contentAnimReady ? 'animate-fade-up' : 'opacity-0'}`}
         >
           <svg
             viewBox="0 0 24 24"
@@ -843,16 +820,11 @@ export default function VolumetricLightingSection() {
         <NextNavLink
           to={settings.overlay.nextLink.to}
           ariaLabel={settings.overlay.nextLink.ariaLabel}
+          animateReady={contentAnimReady}
           style={{
-            animationDelay: `${
-              settings.overlay.controlsIntro.initialDelay +
-              settings.overlay.controlsIntro.stagger
-            }s`,
+            animationDelay: `${(controlsIntro.initialDelay ?? 0) + (controlsIntro.stagger ?? 0)}s`,
           }}
-          className="pointer-events-auto inline-flex h-12 animate-fade-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95"
-        >
-          {settings.overlay.nextLink.text}
-        </NextNavLink>
+        />
       </div>
 
       <div
@@ -868,9 +840,9 @@ export default function VolumetricLightingSection() {
           style={{ textAlign: brandIntro.textAlign ?? 'left' }}
         >
           <span
-            className="block animate-fade-up tracking-[0.02em] text-transparent"
+            className={`block tracking-[0.02em] text-transparent ${contentAnimReady ? 'animate-fade-up' : 'opacity-0'}`}
             style={{
-              animationDelay: `${brandInitialDelay}s`,
+              ...(contentAnimReady ? { animationDelay: `${brandInitialDelay}s` } : {}),
               fontSize: brandIntro.subtitleFontSize ?? 'clamp(3.75rem, 7vw, 14rem)',
               WebkitTextStroke: `${brandIntro.titleStrokeWidth ?? 'clamp(0.5px, 0.18vw, 1.5px)'} white`,
             }}
@@ -878,9 +850,9 @@ export default function VolumetricLightingSection() {
             {brandIntro.subtitleText ?? 'Агентство'}
           </span>
           <span
-            className="block animate-fade-up tracking-[0.01em]"
+            className={`block tracking-[0.01em] ${contentAnimReady ? 'animate-fade-up' : 'opacity-0'}`}
             style={{
-              animationDelay: `${brandInitialDelay + brandLineStagger}s`,
+              ...(contentAnimReady ? { animationDelay: `${brandInitialDelay + brandLineStagger}s` } : {}),
               fontSize: brandIntro.titleFontSize ?? 'clamp(4.5rem, 15vw, 15rem)',
             }}
           >

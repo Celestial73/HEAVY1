@@ -5,13 +5,13 @@ import { createPortal } from 'react-dom'
  * Фиксированная кнопка «вперёд» на уровне глобального CTA.
  * Текст children не рендерим: визуально только белый круг с чёрной стрелкой.
  */
-export default function NextNavLink({ to, ariaLabel, style }) {
+export default function NextNavLink({ to, ariaLabel, style, animateReady = true }) {
   const link = (
     <Link
       to={to}
       aria-label={ariaLabel}
-      className="pointer-events-auto fixed bottom-5 right-5 z-70 inline-flex h-12 w-12 animate-fade-up items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:bg-zinc-100 active:scale-95 sm:bottom-6 sm:right-8"
-      style={style}
+      className={`pointer-events-auto fixed bottom-5 right-5 z-70 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:bg-zinc-100 active:scale-95 sm:bottom-6 sm:right-8 ${animateReady ? 'animate-fade-up' : 'opacity-0'}`}
+      style={animateReady ? style : undefined}
     >
       <svg
         viewBox="0 0 24 24"

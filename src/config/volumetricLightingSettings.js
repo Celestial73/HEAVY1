@@ -301,7 +301,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
   cameraPointLight: {
     enabled: true,
     color: 0xffffff,
-    intensity: 50,
+    intensity: 15,
     distance: 0,
     castShadow: false,
     offset: [0, 2, 0],

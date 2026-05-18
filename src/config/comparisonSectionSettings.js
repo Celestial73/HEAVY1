@@ -107,7 +107,7 @@ export const COMPARISON_SECTION_SETTINGS = {
      *  - `text`   — содержимое
      *  - `delay`  — задержка fade-in (сек)
      *  - `className` — опционально, дополнительные Tailwind-классы (добавляются к base)
-     *  - `style`  — опционально, inline-стили (редкие случаи: letterSpacing, color из JS)
+     *  - `style`  — inline-стили, напр. `{ fontWeight: 400 }` (перебивает `font-medium` из base)
      */
     paragraphs: [
       {
@@ -118,12 +118,13 @@ export const COMPARISON_SECTION_SETTINGS = {
       {
         text: 'Реально тупо увеличиваем вес вещей',
         delay: 0.88,
-        className: 'font-museo-cyrl text-xl lg:text-xl text-white/75',
+        className: 'font-coolvetica text-2xl lg:text-xl text-white/75',
+        style: { fontWeight: 400 },
       },
       {
         text: 'И всё.',
         delay: 1.06,
-        className: 'font-kalissa text-right text-7xl lg:text-7xl tracking-[0.2em] text-white/50',
+        className: 'font-kalissa text-right text-7xl sm:text-7xl md:text-7xl lg:text-8xl t racking-[0.2em] text-white/50',
       },
     ],
   },

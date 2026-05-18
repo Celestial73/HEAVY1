@@ -118,7 +118,7 @@ export const COMPARISON_SECTION_SETTINGS = {
       {
         text: 'Реально тупо увеличиваем вес вещей',
         delay: 0.88,
-        className: 'font-coolvetica text-2xl lg:text-xl text-white/75',
+        className: 'font-coolvetica text-l lg:text-xl text-white/75',
         style: { fontWeight: 400 },
       },
       {

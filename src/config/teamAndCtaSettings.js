@@ -71,7 +71,7 @@ export const TEAM_AND_CTA_SETTINGS = {
       yPercent: 9,
       xOrigin: 'right',
       yOrigin: 'top',
-      width: 'clamp(30rem, 60vw, 1000rem)',
+      width: 'clamp(20rem, 50vw, 1000rem)',
       aspectRatio: '4/3',
       objectFit: 'contain',
     },
@@ -85,7 +85,7 @@ export const TEAM_AND_CTA_SETTINGS = {
       yPercent: 40,
       xOrigin: 'left',
       yOrigin: 'top',
-      width: 'clamp(20rem, 60vw, 1000rem)',
+      width: 'clamp(17rem, 50vw, 1000rem)',
       aspectRatio: '3/4',
       objectFit: 'contain',
       spaceBelowCaption: 'clamp(2rem, 10vh, 8rem)',
@@ -106,7 +106,7 @@ export const TEAM_AND_CTA_SETTINGS = {
     /** Внутренний путь (`/pipeline` и т.д.) или `mailto:…` / `https://…` */
     to: 'https://t.me/bailem0s',
     buttonClassName:
-      'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-semibold uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
+      'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-st-rome uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
     buttonFontSize: 'clamp(0.625rem, 2.8vw, 0.875rem)',
   },
 }

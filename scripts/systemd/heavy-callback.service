@@ -1,0 +1,16 @@
+[Unit]
+Description=HEAVY callback API (order form)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=REPO_DIR_PLACEHOLDER
+EnvironmentFile=/etc/heavy/callback.env
+ExecStart=/usr/bin/python3 REPO_DIR_PLACEHOLDER/server/callback/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

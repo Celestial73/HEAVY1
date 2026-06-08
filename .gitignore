@@ -11,6 +11,8 @@ node_modules
 # dist коммитится для деплоя на VDS (см. npm run release)
 dist-ssr
 *.local
+server/callback/.env
+/etc/heavy/callback.env
 
 # Editor directories and files
 .vscode/*

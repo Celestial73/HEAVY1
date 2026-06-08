@@ -25,6 +25,11 @@ if [[ ! -f dist/index.html ]]; then
   exit 1
 fi
 
+if systemctl is-active --quiet heavy-callback 2>/dev/null; then
+  echo "==> heavy-callback restart"
+  sudo systemctl restart heavy-callback
+fi
+
 if command -v nginx >/dev/null 2>&1; then
   echo "==> nginx reload"
   sudo nginx -t

@@ -70,7 +70,7 @@ export const PORTFOLIO_SECTION_SETTINGS = {
   descriptionDefaults: {
     titleClassName: 'font-st-rome text-3xl leading-tight text-white md:text-3xl lg:text-5xl',
     descriptionClassName:
-      'mt-3 whitespace-pre-line font-museo-cyrl text-base leading-relaxed text-white/85 text-lg md:text-lg lg:text-2xl',
+      'mt-3 whitespace-pre-line font-montserrat text-base leading-relaxed text-white/85 text-lg md:text-lg lg:text-2xl',
     widthVw: 48,
   },
 
@@ -81,7 +81,7 @@ export const PORTFOLIO_SECTION_SETTINGS = {
   },
 
   textDefaults: {
-    className: 'whitespace-pre-line font-museo-cyrl text-base leading-relaxed text-white/80 sm:text-lg',
+    className: 'whitespace-pre-line font-montserrat text-base leading-relaxed text-white/80 sm:text-lg',
     widthVw: 50,
   },
 

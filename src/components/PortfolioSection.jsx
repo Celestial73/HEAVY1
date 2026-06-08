@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PORTFOLIO_SECTION_SETTINGS as defaults } from '../config/portfolioSectionSettings.js'
+import { preloadAppFonts, preloadPortfolioFonts } from '../utils/fontLoader.js'
 import { toCssLength } from '../utils/cssLength.js'
 import {
   getPortfolioBlockPresentation,
@@ -221,6 +222,10 @@ function PortfolioHero({ hero, intro, stageInsetPx }) {
 
 export default function PortfolioSection() {
   const [settings, setSettings] = useState(defaults)
+
+  useEffect(() => {
+    void Promise.all([preloadAppFonts(), preloadPortfolioFonts(settings)])
+  }, [settings])
 
   useEffect(() => {
     if (!import.meta.hot) return undefined

@@ -103,8 +103,8 @@ export const TEAM_AND_CTA_SETTINGS = {
   /** Нижний блок: только кнопка */
   footer: {
     buttonText: 'Заказать утяжеление',
-    /** Внутренний путь (`/pipeline` и т.д.) или `mailto:…` / `https://…` */
-    to: 'https://t.me/bailem0s',
+    /** Страница заказа */
+    to: '/order',
     buttonClassName:
       'inline-flex h-12 w-auto max-w-[calc(100vw-1.5rem)] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-white/20 bg-white px-4 font-bold uppercase tracking-[0.12em] text-black transition hover:bg-zinc-100 active:scale-[0.98] sm:px-8 sm:tracking-[0.16em]',
     buttonFontSize: 'clamp(0.625rem, 2.8vw, 0.875rem)',

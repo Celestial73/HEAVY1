@@ -25,6 +25,9 @@ function CtaLink({ to, className, style, children }) {
 export default function GlobalCtaButton() {
   const location = useLocation()
   const footer = TEAM_AND_CTA_SETTINGS.footer ?? {}
+
+  if (location.pathname === '/order') return null
+
   const isFinalPage = location.pathname === '/portfolio'
   const buttonFontSize = toCssLength(footer.buttonFontSize)
   const className = isFinalPage
@@ -41,7 +44,7 @@ export default function GlobalCtaButton() {
   return (
     <div className={wrapperClassName}>
       <CtaLink
-        to={footer.to ?? '/team-and-cta'}
+        to={footer.to ?? '/order'}
         className={`pointer-events-auto ${className}`}
         style={buttonFontSize ? { fontSize: buttonFontSize } : undefined}
       >

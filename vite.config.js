@@ -5,4 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/HEAVY1/' : '/',
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api/callback': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+    },
+  },
 })

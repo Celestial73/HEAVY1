@@ -7,7 +7,7 @@ export default function PortfolioDescription({
   title,
   description,
   titleClassName = 'font-st-rome text-2xl leading-tight text-white sm:text-3xl',
-  descriptionClassName = 'mt-3 whitespace-pre-line font-museo-cyrl text-base leading-relaxed text-white/85 sm:text-lg',
+  descriptionClassName = 'mt-3 whitespace-pre-line font-montserrat text-base leading-relaxed text-white/85 sm:text-lg',
   width,
   titleFontSize,
   descriptionFontSize,

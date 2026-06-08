@@ -9,7 +9,7 @@
 @source "../index.html";
 @source "./**/*.{js,jsx,ts,tsx}";
 @source "./config/portfolioTailwindClasses.js";
-@source inline("font-lora font-montserrat");
+@source inline("font-lora font-montserrat font-museo-cyrl font-st-rome font-brand font-kalissa");
 
 @font-face {
   font-family: 'Bebas Neue';

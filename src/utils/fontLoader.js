@@ -168,6 +168,40 @@ export async function preloadComparisonFonts(settings) {
   return loadFontSpecs(buildComparisonFontSpecs(settings))
 }
 
+/** Шрифты секции Portfolio из className в настройках. */
+export function buildPortfolioFontSpecs(settings) {
+  const specs = []
+  const addFromClassName = (className) => {
+    const family = familyFromClassName(className)
+    if (!family) return
+    specs.push({
+      family,
+      weight: weightFromClassName(className),
+      sizePx: sizePxFromClassName(className),
+    })
+  }
+
+  const { descriptionDefaults, textDefaults, hero } = settings ?? {}
+  if (hero?.titleClassName) addFromClassName(hero.titleClassName)
+  if (descriptionDefaults?.titleClassName) addFromClassName(descriptionDefaults.titleClassName)
+  if (descriptionDefaults?.descriptionClassName) {
+    addFromClassName(descriptionDefaults.descriptionClassName)
+  }
+  if (textDefaults?.className) addFromClassName(textDefaults.className)
+
+  for (const block of settings?.blocks ?? []) {
+    if (block.titleClassName) addFromClassName(block.titleClassName)
+    if (block.descriptionClassName) addFromClassName(block.descriptionClassName)
+    if (block.className) addFromClassName(block.className)
+  }
+
+  return specs
+}
+
+export async function preloadPortfolioFonts(settings) {
+  return loadFontSpecs(buildPortfolioFontSpecs(settings))
+}
+
 /** Все кастомные семейства сайта — вызывать один раз при старте SPA. */
 export function buildAppFontSpecs() {
   const specs = []

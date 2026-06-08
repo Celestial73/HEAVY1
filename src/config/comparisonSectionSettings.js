@@ -27,7 +27,7 @@ export const COMPARISON_SECTION_SETTINGS = {
     sectionId: 'comparison',
     sectionClassName: 'relative h-svh w-full overflow-hidden bg-black',
     containerClassName:
-      'flex h-full w-full flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16 md:flex-row md:items-stretch md:gap-14 md:px-16 md:py-20',
+      'flex h-full w-full flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16 md:flex-row md:items-stretch md:gap-14 md:px-16 md:py-12',
     /** Текстовый блок: 50% высоты на мобиле / 65% ширины на десктопе. `h-full` — колонка на всю высоту слота; параграфы растягиваются внутри через `paragraphsContainerClassName`. */
     textBlockClassName:
       'flex h-full min-h-0 min-w-0 flex-[50_1_0] flex-col gap-6 md:flex-[65_1_0]',
@@ -70,7 +70,7 @@ export const COMPARISON_SECTION_SETTINGS = {
   /** Кнопка перехода на следующую страницу. */
   cta: {
     text: 'Next',
-    to: '/pipeline',
+    to: '/portfolio',
     ariaLabel: 'Перейти к следующей странице',
     className:
       'inline-flex h-12 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 text-sm font-medium uppercase tracking-[0.25em] text-white backdrop-blur-md transition hover:bg-white/10 active:scale-95',

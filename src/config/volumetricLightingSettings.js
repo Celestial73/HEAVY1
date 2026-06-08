@@ -200,9 +200,12 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
    * hitbox: { halfExtents: [hx, hy, hz] } | { size: [w, h, d] } — куб для коллизий при расстановке.
    * alwaysInclude: true — объект добавляется всегда, сверх randomLarge/SmallSpinnablesCount.
    */
-  /** Сколько случайных large брать из `spinnablesLarge` (alwaysInclude не считается). */
+  /**
+   * Пул ротации объектов на 1-м экране (главная volumetric-сцена, `/`).
+   * При загрузке / refresh: `randomLargeSpinnablesCount` + `randomSmallSpinnablesCount` случайных
+   * из пулов ниже (+ `alwaysInclude`, если задан).
+   */
   randomLargeSpinnablesCount: 1,
-  /** Сколько случайных small брать из `spinnablesSmall`. */
   randomSmallSpinnablesCount: 3,
 
   spinnablesLarge: [
@@ -234,6 +237,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       hitbox: { halfExtents: [1, 1, 1] },
       castShadow: true,
     },
+
 
   ],
 
@@ -276,6 +280,7 @@ export const VOLUMETRIC_LIGHTING_SETTINGS = {
       hitbox: { halfExtents: [2, 2, 0.85] },
       castShadow: true,
     },
+
   ],
 
   floor: {

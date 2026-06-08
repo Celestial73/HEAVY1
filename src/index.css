@@ -8,6 +8,7 @@
  */
 @source "../index.html";
 @source "./**/*.{js,jsx,ts,tsx}";
+@source "./config/portfolioTailwindClasses.js";
 @source inline("font-lora font-montserrat");
 
 @font-face {
@@ -283,4 +284,107 @@ body {
   min-width: 320px;
   min-height: 100svh;
   background: #000;
+}
+
+/** Ширина блоков портфолио: inline `--pbw`, `--pbw-md`, … на элементе. */
+.portfolio-block-w {
+  width: var(--pbw, 40vw);
+}
+
+@media (min-width: 640px) {
+  .portfolio-block-w {
+    width: var(--pbw-sm, var(--pbw, 40vw));
+  }
+}
+
+@media (min-width: 768px) {
+  .portfolio-block-w {
+    width: var(--pbw-md, var(--pbw-sm, var(--pbw, 40vw)));
+  }
+}
+
+@media (min-width: 1024px) {
+  .portfolio-block-w {
+    width: var(--pbw-lg, var(--pbw-md, var(--pbw-sm, var(--pbw, 40vw))));
+  }
+}
+
+@media (min-width: 1280px) {
+  .portfolio-block-w {
+    width: var(--pbw-xl, var(--pbw-lg, var(--pbw-md, var(--pbw-sm, var(--pbw, 40vw)))));
+  }
+}
+
+@media (min-width: 1536px) {
+  .portfolio-block-w {
+    width: var(
+      --pbw-2xl,
+      var(--pbw-xl, var(--pbw-lg, var(--pbw-md, var(--pbw-sm, var(--pbw, 40vw)))))
+    );
+  }
+}
+
+/** Позиция блоков портфолио: inline `--pb-x`, `--pb-y`, `--pb-tx`, `--pb-ty`, … */
+.portfolio-block-pos {
+  left: var(--pb-x, 50%);
+  top: var(--pb-y, 0vh);
+  transform: translate(var(--pb-tx, 0), var(--pb-ty, 0));
+}
+
+@media (min-width: 640px) {
+  .portfolio-block-pos {
+    left: var(--pb-x-sm, var(--pb-x, 50%));
+    top: var(--pb-y-sm, var(--pb-y, 0vh));
+    transform: translate(var(--pb-tx-sm, var(--pb-tx, 0)), var(--pb-ty-sm, var(--pb-ty, 0)));
+  }
+}
+
+@media (min-width: 768px) {
+  .portfolio-block-pos {
+    left: var(--pb-x-md, var(--pb-x-sm, var(--pb-x, 50%)));
+    top: var(--pb-y-md, var(--pb-y-sm, var(--pb-y, 0vh)));
+    transform: translate(
+      var(--pb-tx-md, var(--pb-tx-sm, var(--pb-tx, 0))),
+      var(--pb-ty-md, var(--pb-ty-sm, var(--pb-ty, 0)))
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .portfolio-block-pos {
+    left: var(--pb-x-lg, var(--pb-x-md, var(--pb-x-sm, var(--pb-x, 50%))));
+    top: var(--pb-y-lg, var(--pb-y-md, var(--pb-y-sm, var(--pb-y, 0vh))));
+    transform: translate(
+      var(--pb-tx-lg, var(--pb-tx-md, var(--pb-tx-sm, var(--pb-tx, 0)))),
+      var(--pb-ty-lg, var(--pb-ty-md, var(--pb-ty-sm, var(--pb-ty, 0))))
+    );
+  }
+}
+
+@media (min-width: 1280px) {
+  .portfolio-block-pos {
+    left: var(--pb-x-xl, var(--pb-x-lg, var(--pb-x-md, var(--pb-x-sm, var(--pb-x, 50%)))));
+    top: var(--pb-y-xl, var(--pb-y-lg, var(--pb-y-md, var(--pb-y-sm, var(--pb-y, 0vh)))));
+    transform: translate(
+      var(--pb-tx-xl, var(--pb-tx-lg, var(--pb-tx-md, var(--pb-tx-sm, var(--pb-tx, 0))))),
+      var(--pb-ty-xl, var(--pb-ty-lg, var(--pb-ty-md, var(--pb-ty-sm, var(--pb-ty, 0)))))
+    );
+  }
+}
+
+@media (min-width: 1536px) {
+  .portfolio-block-pos {
+    left: var(
+      --pb-x-2xl,
+      var(--pb-x-xl, var(--pb-x-lg, var(--pb-x-md, var(--pb-x-sm, var(--pb-x, 50%)))))
+    );
+    top: var(
+      --pb-y-2xl,
+      var(--pb-y-xl, var(--pb-y-lg, var(--pb-y-md, var(--pb-y-sm, var(--pb-y, 0vh)))))
+    );
+    transform: translate(
+      var(--pb-tx-2xl, var(--pb-tx-xl, var(--pb-tx-lg, var(--pb-tx-md, var(--pb-tx-sm, var(--pb-tx, 0)))))),
+      var(--pb-ty-2xl, var(--pb-ty-xl, var(--pb-ty-lg, var(--pb-ty-md, var(--pb-ty-sm, var(--pb-ty, 0))))))
+    );
+  }
 }

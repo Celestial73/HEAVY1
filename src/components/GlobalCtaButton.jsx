@@ -25,7 +25,7 @@ function CtaLink({ to, className, style, children }) {
 export default function GlobalCtaButton() {
   const location = useLocation()
   const footer = TEAM_AND_CTA_SETTINGS.footer ?? {}
-  const isFinalPage = location.pathname === '/team-and-cta'
+  const isFinalPage = location.pathname === '/portfolio'
   const buttonFontSize = toCssLength(footer.buttonFontSize)
   const className = isFinalPage
     ? (footer.buttonClassName ??
@@ -35,7 +35,7 @@ export default function GlobalCtaButton() {
         'border-white/25 bg-black/45 text-white backdrop-blur-md hover:bg-black/70 text-l sm:text-m',
       ].join(' ')
   const wrapperClassName = isFinalPage
-    ? 'pointer-events-noFne fixed bottom-5 left-1/2 z-70 -translate-x-1/2 pb-[env(safe-area-inset-bottom)] sm:bottom-6'
+    ? 'pointer-events-none fixed bottom-5 left-1/2 z-70 -translate-x-1/2 pb-[env(safe-area-inset-bottom)] sm:bottom-6'
     : 'pointer-events-none fixed bottom-5 left-5 z-70 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:left-8'
 
   return (

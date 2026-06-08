@@ -16,7 +16,7 @@ export const ORDER_SECTION_SETTINGS = {
 
   hero: {
     title: 'Заказать утяжеление',
-    subtitle: 'Выберите удобный способ связи',
+    subtitle: '',
     titleClassName: 'font-brand text-4xl uppercase leading-none tracking-[0.06em] text-white sm:text-5xl',
     subtitleClassName: 'mt-4 font-montserrat text-base leading-relaxed text-white/70 sm:text-lg',
   },

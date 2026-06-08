@@ -31,6 +31,8 @@ export const ORDER_SECTION_SETTINGS = {
     'group flex w-full flex-col gap-1 rounded-2xl border border-white/15 bg-white/5 px-6 py-5 text-left transition hover:border-white/30 hover:bg-white/10 active:scale-[0.99]',
   optionLabelClassName: 'font-st-rome text-xl text-white sm:text-2xl',
   optionDescriptionClassName: 'font-montserrat text-sm leading-relaxed text-white/65 sm:text-base',
+  copyButtonLabel: 'Скопировать',
+  copiedButtonLabel: 'Скопировано',
 
   options: [
     {
@@ -40,6 +42,7 @@ export const ORDER_SECTION_SETTINGS = {
       description: '@bailem0s',
       hrefKey: 'telegram',
       openInNewTab: true,
+      copy: true,
     },
     {
       id: 'email',
@@ -48,6 +51,7 @@ export const ORDER_SECTION_SETTINGS = {
       description: 'lead-elephant@mail.ru',
       hrefKey: 'email',
       mailto: true,
+      copy: true,
     },
     {
       id: 'callback',
@@ -56,7 +60,7 @@ export const ORDER_SECTION_SETTINGS = {
       description: 'Перезвоним как будет настроение',
       submitLabel: 'Заказать звонок',
       loadingLabel: 'Отправка…',
-      successMessage: 'Заявка отправлена. Перезвоним, как будет настроение.',
+      successMessage: 'Окей спасибо',
       emailSubject: 'Заказать обратный звонок',
       phonePlaceholder: '+7 (___) ___-__-__',
     },

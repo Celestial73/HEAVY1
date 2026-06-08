@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { ORDER_SECTION_SETTINGS as defaults } from '../config/orderSectionSettings.js'
 import { submitCallbackRequest } from '../utils/callbackRequest.js'
 
@@ -20,21 +21,104 @@ function resolveOptionHref(option, contact) {
   return value
 }
 
-function OrderLinkOption({ option, href, labelClassName, descriptionClassName, buttonClassName, delaySec }) {
+function resolveCopyValue(option, contact) {
+  if (option.copy === false) return null
+  if (option.copyValue) return String(option.copyValue).trim()
+
+  const key = option.hrefKey
+  if (!key || !contact) return option.copy ? (option.description?.trim() ?? null) : null
+
+  const value = contact[key]
+  if (!value) return option.description?.trim() ?? null
+
+  if (option.mailto || key === 'email') {
+    return value.replace(/^mailto:/i, '').trim()
+  }
+
+  if (key === 'telegram') {
+    const handle = value.match(/t\.me\/([^/?#]+)/i)?.[1]
+    if (handle) return `@${handle}`
+  }
+
+  return option.description?.trim() ?? value.trim()
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) throw new Error('copy failed')
+}
+
+function OrderLinkOption({
+  option,
+  href,
+  contact,
+  labelClassName,
+  descriptionClassName,
+  buttonClassName,
+  copyButtonLabel,
+  copiedButtonLabel,
+  delaySec,
+}) {
+  const [copied, setCopied] = useState(false)
   const external = option.openInNewTab === true || /^https?:\/\//i.test(href)
+  const copyValue = resolveCopyValue(option, contact)
+
+  const handleCopy = async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!copyValue || copied) return
+
+    try {
+      await copyTextToClipboard(copyValue)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
-    <a
-      href={href}
+    <div
       className={`animate-fade-up ${buttonClassName}`}
       style={{ animationDelay: `${delaySec}s` }}
-      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
     >
-      <span className={labelClassName}>{option.label}</span>
-      {option.description ? (
-        <span className={descriptionClassName}>{option.description}</span>
-      ) : null}
-    </a>
+      <div className="flex items-center justify-between gap-3">
+        <a
+          href={href}
+          className="flex min-w-0 flex-1 flex-col gap-1"
+          {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        >
+          <span className={labelClassName}>{option.label}</span>
+          {option.description ? (
+            <span className={descriptionClassName}>{option.description}</span>
+          ) : null}
+        </a>
+        {copyValue ? (
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? copiedButtonLabel : copyButtonLabel}
+            title={copied ? copiedButtonLabel : copyButtonLabel}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/35 hover:bg-white/10 hover:text-white active:scale-[0.98]"
+          >
+            {copied ? <Check size={16} strokeWidth={2} aria-hidden /> : <Copy size={16} strokeWidth={2} aria-hidden />}
+          </button>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -112,7 +196,7 @@ function OrderCallbackOption({
       ) : null}
       {isSuccess ? (
         <p className="mt-4 font-montserrat text-sm text-emerald-300/90" role="status">
-          {option.successMessage ?? 'Заявка отправлена. Перезвоним, как будет настроение.'}
+          {option.successMessage ?? 'Окей спасибо'}
         </p>
       ) : (
         <button
@@ -138,8 +222,18 @@ export default function OrderSection() {
     return undefined
   }, [])
 
-  const { layout, intro, hero, contact, options, optionButtonClassName, optionLabelClassName, optionDescriptionClassName } =
-    settings
+  const {
+    layout,
+    intro,
+    hero,
+    contact,
+    options,
+    optionButtonClassName,
+    optionLabelClassName,
+    optionDescriptionClassName,
+    copyButtonLabel = 'Скопировать',
+    copiedButtonLabel = 'Скопировано',
+  } = settings
 
   const optionList = Array.isArray(options) ? options : []
   const baseDelay =
@@ -187,9 +281,12 @@ export default function OrderSection() {
                 key={option.id ?? `link-${index}`}
                 option={option}
                 href={href}
+                contact={contact}
                 labelClassName={optionLabelClassName}
                 descriptionClassName={optionDescriptionClassName}
                 buttonClassName={optionButtonClassName}
+                copyButtonLabel={copyButtonLabel}
+                copiedButtonLabel={copiedButtonLabel}
                 delaySec={delaySec}
               />
             )

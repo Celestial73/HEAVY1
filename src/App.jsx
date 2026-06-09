@@ -8,6 +8,7 @@ import ScrollToTop from './components/ScrollToTop'
 import VolumetricLightingSection from './components/VolumetricLightingSection'
 import GlobalCtaButton from './components/GlobalCtaButton.jsx'
 import VisitLogger from './components/VisitLogger.jsx'
+import YandexMetrika from './components/YandexMetrika.jsx'
 
 function App() {
   const location = useLocation()
@@ -19,6 +20,7 @@ function App() {
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       <VisitLogger />
+      <YandexMetrika />
       <ScrollToTop />
       <GlobalCtaButton />
       <div key={location.pathname} className="animate-fade-page">

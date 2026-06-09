@@ -49,17 +49,5 @@ export default function YandexMetrika() {
     hitYandexMetrikaPage(counterId, location.pathname, location.search)
   }, [counterId, location.pathname, location.search])
 
-  if (!counterId) return null
-
-  return (
-    <noscript>
-      <div>
-        <img
-          src={`https://mc.yandex.ru/watch/${counterId}`}
-          style={{ position: 'absolute', left: '-9999px' }}
-          alt=""
-        />
-      </div>
-    </noscript>
-  )
+  return null
 }

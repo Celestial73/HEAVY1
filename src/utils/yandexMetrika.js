@@ -73,7 +73,11 @@ export async function initYandexMetrika(counterId, options = defaults.init) {
   await loadMetrikaScript()
   if (!window.ym) return
 
-  window.ym(counterId, 'init', options)
+  if (!window.__ymHeavyInited) {
+    window.ym(counterId, 'init', options)
+    window.__ymHeavyInited = true
+  }
+
   initialized = true
 }
 
